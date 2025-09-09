@@ -1,0 +1,54 @@
+package com.example.warehouse.Entity;
+
+import com.example.warehouse.Enum.ExpenseStatus;
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "expenses")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Expense {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // Số tiền chi phí
+    @NotNull(message = "Amount is required")
+    @Column(nullable = false)
+    private Double amount;
+
+    // Loại chi phí: Nhiên liệu, Bảo trì, Sửa chữa, ...
+    @NotBlank(message = "Type is required")
+    @Column(nullable = false)
+    private String type;
+
+    // Mô tả chi phí
+    private String description;
+
+    // Trạng thái phê duyệt: PENDING : Chưa duyệt , APPROVED : Được duyệt , REJECTED : Từ chối
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ExpenseStatus status;
+
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    // ---- Tự động mặc định khi tạo mới ----
+    @PrePersist
+    protected void onCreate() {
+        if (status == null) {
+            status = ExpenseStatus.PENDING;
+        }
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
+}
