@@ -1,13 +1,20 @@
 package com.example.warehouse.Repository;
 
-
 import com.example.warehouse.Entity.SalaryConfig;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.math.BigDecimal;
 
-import java.util.Optional;
-
-@Repository
 public interface SalaryConfigRepository extends JpaRepository<SalaryConfig, Long> {
-    Optional<SalaryConfig> findByDriverIdAndMonth(Long driverId, String month);
+
+    @Query("SELECT SUM(s.baseSalary) FROM SalaryConfig s WHERE s.driver.id = :driverId AND s.month BETWEEN :fromMonth AND :toMonth")
+    BigDecimal sumBaseSalaryForDriverBetweenMonths(@Param("driverId") Long driverId,
+                                                   @Param("fromMonth") String fromMonth,
+                                                   @Param("toMonth") String toMonth);
+
+    @Query("SELECT SUM(s.advance) FROM SalaryConfig s WHERE s.driver.id = :driverId AND s.month BETWEEN :fromMonth AND :toMonth")
+    BigDecimal sumAdvanceForDriverBetweenMonths(@Param("driverId") Long driverId,
+                                                @Param("fromMonth") String fromMonth,
+                                                @Param("toMonth") String toMonth);
 }

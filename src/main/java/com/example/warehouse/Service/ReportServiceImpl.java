@@ -1,114 +1,183 @@
 package com.example.warehouse.Service;
 
-import com.example.warehouse.Dto.Request.SalaryConfigRequest;
-import com.example.warehouse.Dto.Request.SalaryRequest;
-import com.example.warehouse.Dto.Request.ReportFilterRequest;
-import com.example.warehouse.Dto.Response.ExpenseResponse;
-import com.example.warehouse.Dto.Response.SalaryDetailResponse;
-import com.example.warehouse.Dto.Response.SalarySummaryResponse;
-import com.example.warehouse.Dto.Response.TruckExpenseSummaryResponse;
+import com.example.warehouse.Dto.Response.*;
 import com.example.warehouse.Entity.Driver;
 import com.example.warehouse.Entity.Expense;
-import com.example.warehouse.Entity.SalaryConfig;
+import com.example.warehouse.Entity.Schedule;
+import com.example.warehouse.Entity.ScheduleSalary;
+import com.example.warehouse.Entity.Truck;
+import com.example.warehouse.Enum.ExpenseStatus;
 import com.example.warehouse.Repository.DriverRepository;
 import com.example.warehouse.Repository.ExpenseRepository;
-import com.example.warehouse.Repository.SalaryConfigRepository;
 import com.example.warehouse.Repository.ScheduleRepository;
-import lombok.RequiredArgsConstructor;
+import com.example.warehouse.Repository.ScheduleSalaryRepository;
+import com.example.warehouse.Repository.TruckRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ReportServiceImpl implements ReportService {
 
     private final DriverRepository driverRepository;
-    private final SalaryConfigRepository salaryConfigRepository;
+    private final TruckRepository truckRepository;
     private final ScheduleRepository scheduleRepository;
+    private final ScheduleSalaryRepository scheduleSalaryRepository;
     private final ExpenseRepository expenseRepository;
 
-    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
+    public ReportServiceImpl(DriverRepository driverRepository,
+                             TruckRepository truckRepository,
+                             ScheduleRepository scheduleRepository,
+                             ScheduleSalaryRepository scheduleSalaryRepository,
+                             ExpenseRepository expenseRepository) {
+        this.driverRepository = driverRepository;
+        this.truckRepository = truckRepository;
+        this.scheduleRepository = scheduleRepository;
+        this.scheduleSalaryRepository = scheduleSalaryRepository;
+        this.expenseRepository = expenseRepository;
+    }
 
+    // ---------- Báo cáo Lương ----------
     @Override
-    public List<SalarySummaryResponse> getSalarySummary(SalaryRequest request) {
-        String monthString = request.getMonth().format(FORMATTER); // Convert YearMonth -> "yyyy-MM"
+    public DriverReportResponse getSalaryReportAllByDriver(Long driverId) {
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new RuntimeException("Driver not found"));
 
-        List<Driver> drivers = driverRepository.findAll();
+        DriverReportResponse response = new DriverReportResponse();
+        response.setDriverId(driver.getId());
+        response.setDriverName(driver.getFullName());
+        response.setBasicSalary(5000000.0);
+        response.setAdvancePayment(1000000.0);
 
-        return drivers.stream().map(driver -> {
-            // 1. Lấy lương cơ bản + tiền ứng
-            SalaryConfig config = salaryConfigRepository.findByDriverIdAndMonth(driver.getId(), monthString)
-                    .orElse(null);
+        // Tính performanceSalary từ scheduleSalary
+        List<Schedule> schedules = scheduleRepository.findByDriverId(driverId);
 
-            BigDecimal baseSalary = config != null ? config.getBaseSalary() : BigDecimal.ZERO;
-            BigDecimal advance = config != null ? config.getAdvance() : BigDecimal.ZERO;
-
-            // 2. Tổng lương từ lịch trình
-            BigDecimal totalScheduleSalary = scheduleRepository.findByDriverAndMonth(driver.getId(), monthString)
-                    .stream()
-                    .map(schedule -> schedule.getScheduleSalary() != null ? schedule.getScheduleSalary() : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            // 3. Tổng chi phí xe
-            BigDecimal totalTruckExpense = expenseRepository.findByDriverAndMonth(driver.getId(), monthString)
-                    .stream()
-                    .map(expense -> expense.getAmount() != null ? BigDecimal.valueOf(expense.getAmount()) : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            // 4. Công thức lương
-            BigDecimal finalSalary = baseSalary
-                    .add(totalScheduleSalary)
-                    .add(totalTruckExpense)
-                    .subtract(advance);
-
-            // 5. Build response
-            return SalarySummaryResponse.builder()
-                    .driverId(driver.getId())
-                    .driverName(driver.getFullName())
-                    .baseSalary(baseSalary)
-                    .scheduleSalary(totalScheduleSalary)
-                    .expense(totalTruckExpense)
-                    .advance(advance)
-                    .finalSalary(finalSalary)
-                    .build();
-
+        List<DriverSalaryDetail> details = schedules.stream().map(s -> {
+            DriverSalaryDetail detail = new DriverSalaryDetail();
+            detail.setScheduleId(s.getId());
+            detail.setRouteSalary(s.getScheduleSalary().doubleValue()); // lương lịch trình
+            detail.setCost(0.0); // placeholder nếu chưa có chi phí, hoặc tính từ Expense
+            detail.setDescription(s.getDescription());
+            return detail;
         }).collect(Collectors.toList());
+
+        response.setDetails(details);
+
+// Tính tổng performanceSalary
+        double performanceSalary = details.stream().mapToDouble(DriverSalaryDetail::getRouteSalary).sum();
+        response.setPerformanceSalary(performanceSalary);
+
+// Tính tổng lương
+        double totalSalary = response.getBasicSalary() + performanceSalary - response.getAdvancePayment();
+        response.setTotalSalary(totalSalary);
+
+
+
+
+
+        return response;
     }
 
+    // ---------- Báo cáo Chi phí ----------
+    @Override
+    public VehicleCostResponse getVehicleCostReport(Long truckId) {
+        Truck truck = truckRepository.findById(truckId)
+                .orElseThrow(() -> new RuntimeException("Truck not found"));
+
+        List<Schedule> schedules = scheduleRepository.findByTruckId(truckId);
+        List<Expense> expenses = expenseRepository.findByTruckIdAndStatus(truckId, ExpenseStatus.APPROVED);
+
+        List<VehicleCostDetail> details = new ArrayList<>();
+        double totalCost = 0;
+
+        for (Schedule s : schedules) {
+            VehicleCostDetail detail = new VehicleCostDetail();
+            detail.setScheduleId(s.getId());
+            detail.setCost(s.getScheduleSalary() != null ? s.getScheduleSalary().doubleValue() : 0.0);
+            detail.setDescription(s.getDescription());
+            totalCost += detail.getCost();
+            details.add(detail);
+        }
+
+        for (Expense e : expenses) {
+            VehicleCostDetail detail = new VehicleCostDetail();
+            detail.setScheduleId(null);
+            detail.setCost(e.getAmount() != null ? e.getAmount() : 0.0);
+            detail.setDescription(e.getType() + ": " + e.getDescription());
+            totalCost += detail.getCost();
+            details.add(detail);
+        }
+
+        VehicleCostResponse response = new VehicleCostResponse();
+        response.setTruckId(truck.getId());
+        response.setTruckCode(truck.getLicensePlate());
+        response.setTotalCost(totalCost);
+        response.setDetails(details);
+
+        return response;
+    }
 
     @Override
-    public List<SalaryDetailResponse> getSalaryDetail(SalaryRequest request) {
-        // TODO: Viết logic chi tiết sau
-        return List.of();
+    public VehicleCostSummaryResponse getVehicleCostAll() {
+        List<Truck> trucks = truckRepository.findAll();
+        List<VehicleCostResponse> vehicleCosts = new ArrayList<>();
+        double totalCostAllTrucks = 0;
+
+        for (Truck truck : trucks) {
+            VehicleCostResponse vcr = getVehicleCostReport(truck.getId());
+            vehicleCosts.add(vcr);
+            totalCostAllTrucks += vcr.getTotalCost();
+        }
+
+        VehicleCostSummaryResponse summary = new VehicleCostSummaryResponse();
+        summary.setVehicleCosts(vehicleCosts);
+        summary.setTotalCostAllTrucks(totalCostAllTrucks);
+        return summary;
+    }
+
+    // ---------- Báo cáo Lịch trình ----------
+    @Override
+    public List<ScheduleDetailResponse> getScheduleDetailsAllByTruck(Long truckId) {
+        List<Schedule> schedules = scheduleRepository.findByTruckId(truckId);
+        List<ScheduleDetailResponse> responses = new ArrayList<>();
+
+        for (Schedule s : schedules) {
+            ScheduleDetailResponse response = new ScheduleDetailResponse();
+            response.setScheduleId(s.getId());
+            response.setTruckCode(s.getTruck() != null ? s.getTruck().getLicensePlate() : "");
+            response.setDriverName(s.getDriver() != null ? s.getDriver().getFullName() : "");
+            response.setDescription(s.getDescription());
+            response.setCost(s.getScheduleSalary() != null ? s.getScheduleSalary().doubleValue() : 0.0);
+            response.setDocumentUrl(s.getProofDocumentPath() != null ? s.getProofDocumentPath() : "");
+            responses.add(response);
+        }
+        return responses;
     }
 
     @Override
-    public void updateSalaryConfig(SalaryConfigRequest request) {
-        // TODO: Lưu cấu hình lương vào DB
-        // ví dụ:
-        // SalaryConfig config = new SalaryConfig();
-        // config.setDriverId(request.getDriverId());
-        // config.setMonth(request.getMonth());
-        // config.setBaseSalary(request.getBaseSalary());
-        // config.setAdvance(request.getAdvance());
-        // salaryConfigRepository.save(config);
+    public AllScheduleDetailResponse getScheduleDetailsAll() {
+        List<Schedule> schedules = scheduleRepository.findAll();
+        List<ScheduleDetailResponse> responses = new ArrayList<>();
+        double totalCostAllTrucks = 0;
+
+        for (Schedule s : schedules) {
+            ScheduleDetailResponse response = new ScheduleDetailResponse();
+            response.setScheduleId(s.getId());
+            response.setTruckCode(s.getTruck() != null ? s.getTruck().getLicensePlate() : "");
+            response.setDriverName(s.getDriver() != null ? s.getDriver().getFullName() : "");
+            response.setDescription(s.getDescription());
+            response.setCost(s.getScheduleSalary() != null ? s.getScheduleSalary().doubleValue() : 0.0);
+            response.setDocumentUrl(s.getProofDocumentPath() != null ? s.getProofDocumentPath() : "");
+            totalCostAllTrucks += response.getCost();
+            responses.add(response);
+        }
+
+        AllScheduleDetailResponse summary = new AllScheduleDetailResponse();
+        summary.setSchedules(responses);
+        summary.setTotalCostAllTrucks(totalCostAllTrucks);
+        return summary;
     }
-
-    @Override
-    public List<ExpenseResponse> getTruckExpenses(ReportFilterRequest request) {
-        // TODO: Viết logic chi phí theo từng xe
-        return List.of();
-    }
-
-    @Override
-    public List<TruckExpenseSummaryResponse> getAllTruckExpenses(ReportFilterRequest request) {
-        // TODO: Viết logic tổng hợp chi phí tất cả xe
-        return List.of();
-    }
-
-
 }

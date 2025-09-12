@@ -26,7 +26,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.text.DecimalFormat;
+
+
+
+
 
 @Service
 public class WarehouseService {
@@ -84,6 +88,17 @@ public class WarehouseService {
         this.scheduleSalaryRepository = scheduleSalaryRepository;
     }
 
+
+    private String formatMoney(Double amount) {
+        if (amount == null) return "0 VND";
+        DecimalFormat df = new DecimalFormat("#,###");
+        return df.format(amount) + " VND";
+
+
+
+    }
+
+
     // ================== Nhập kho ==================
     public NhapKho nhapKho(NhapKho nhapKho) {
         if (nhapKho.getTenHangHoa() == null || nhapKho.getTenHangHoa().isBlank()) {
@@ -136,6 +151,7 @@ public class WarehouseService {
         existing.setSoLuong(updated.getSoLuong());
         existing.setLoaiHang(updated.getLoaiHang());
         existing.setTenHangHoa(updated.getTenHangHoa());
+        existing.setThoigianNhap(updated.getThoigianNhap());
 
         return nhapKhoRepository.save(existing);
     }
@@ -209,6 +225,7 @@ public class WarehouseService {
         existing.setSoLuong(updated.getSoLuong());
         existing.setLoaiHang(updated.getLoaiHang());
         existing.setTenHangHoa(updated.getTenHangHoa());
+        existing.setThoiGianXuat(updated.getThoiGianXuat());
 
         return xuatKhoRepository.save(existing);
     }
@@ -360,13 +377,13 @@ public class WarehouseService {
         Truck truck = truckRepository.findById(request.getTruckId())
                 .orElseThrow(() -> new RuntimeException("Truck not found"));
 
-        // Lấy driver từ truck
-        if (truck.getDriver() == null) {
-            throw new RuntimeException("Truck chưa được gán tài xế!");
-        }
+
 
         schedule.setTruck(truck);
-        schedule.setDriver(truck.getDriver());
+
+
+        List<Schedule> schedules = scheduleRepository.findAll();
+        schedules.forEach(s -> s.setCostFormatted(formatMoney(s.getCost())));
 
         return scheduleRepository.save(schedule);
     }
@@ -380,6 +397,14 @@ public class WarehouseService {
     public Schedule uploadProof(Long id, MultipartFile file) throws IOException {
         Schedule schedule = scheduleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch trình!"));
+
+        List<Schedule> schedules = scheduleRepository.findAll();
+        for (Schedule s : schedules) {
+            if (s.getCost() == null) {
+                s.setCost(s.getScheduleSalary().doubleValue());
+            }
+            s.setCostFormatted(String.format("%,.0f VND", s.getCost()));
+        }
 
         // Lưu file vào thư mục local
         String uploadDir = "uploads/";
@@ -397,6 +422,15 @@ public class WarehouseService {
         Schedule schedule = scheduleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch trình!"));
         schedule.setStatus(ScheduleStatus.APPROVED);
+        List<Schedule> schedules = scheduleRepository.findAll();
+        schedules.forEach(s -> s.setCostFormatted(formatMoney(s.getCost())));
+
+        for (Schedule s : schedules) {
+            if (s.getCost() == null) {
+                s.setCost(s.getScheduleSalary().doubleValue());
+            }
+            s.setCostFormatted(String.format("%,.0f VND", s.getCost()));
+        }
         return scheduleRepository.save(schedule);
     }
 
@@ -404,6 +438,14 @@ public class WarehouseService {
         Schedule schedule = scheduleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch trình!"));
         schedule.setStatus(ScheduleStatus.REJECTED);
+        List<Schedule> schedules = scheduleRepository.findAll();
+        schedules.forEach(s -> s.setCostFormatted(formatMoney(s.getCost())));
+        for (Schedule s : schedules) {
+            if (s.getCost() == null) {
+                s.setCost(s.getScheduleSalary().doubleValue());
+            }
+            s.setCostFormatted(String.format("%,.0f VND", s.getCost()));
+        }
         return scheduleRepository.save(schedule);
     }
 
@@ -440,11 +482,13 @@ public class WarehouseService {
         Schedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new RuntimeException("Schedule not found"));
 
-        // chuyển trạng thái sang PENDING
+        // Chuyển trạng thái sang PENDING
         schedule.setStatus(ScheduleStatus.PENDING);
 
         return scheduleRepository.save(schedule);
+
     }
+
     public List<PendingScheduleResponse> getPendingSchedules() {
         List<Schedule> schedules = scheduleRepository.findByStatus(ScheduleStatus.PENDING);
         return schedules.stream()
@@ -456,7 +500,13 @@ public class WarehouseService {
                         s.getStatus().name()
                 ))
                 .toList();
+
+
+
     }
+
+
+
 
     // ================== Export Excel ==================
     public ByteArrayInputStream exportExcel() throws IOException {
@@ -526,7 +576,7 @@ public class WarehouseService {
         //  KHÔNG set id
         truck.setLicensePlate(request.getLicensePlate());
         truck.setCapacity(request.getCapacity());
-        truck.setDriver(driver);
+
         truck.setStatus(TruckStatus.valueOf(request.getStatus().toUpperCase()));
 
         Truck saved = truckRepository.save(truck);
@@ -535,8 +585,7 @@ public class WarehouseService {
                 .id(saved.getId())
                 .licensePlate(saved.getLicensePlate())
                 .capacity(saved.getCapacity())
-                .driverId(saved.getDriver() != null ? saved.getDriver().getId() : null)
-                .driverName(saved.getDriver() != null ? saved.getDriver().getFullName() : null)
+
                 .status(saved.getStatus().name())
                 .build();
 
@@ -564,24 +613,21 @@ public class WarehouseService {
         if (request.getDriverId() != null) {
             Driver driver = driverRepository.findById(request.getDriverId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế!"));
-            existing.setDriver(driver);
+
         }
         existing.setStatus(TruckStatus.valueOf(request.getStatus().toUpperCase()));
 
         Truck saved = truckRepository.save(existing);
-
         return TruckResponse.builder()
                 .id(saved.getId())
                 .licensePlate(saved.getLicensePlate())
                 .capacity(saved.getCapacity())
-                .driverId(saved.getDriver() != null ? saved.getDriver().getId() : null)
-                .driverName(saved.getDriver() != null ? saved.getDriver().getFullName() : null)
+
                 .status(saved.getStatus().name())
                 .build();
+
+
     }
-
-
-
     // Xóa xe tải
     public String deleteTruck(Long id) {
         Truck truck = truckRepository.findById(id)
@@ -646,20 +692,25 @@ public class WarehouseService {
     }
 
     // Cập nhật thông tin tài xế
-    public Driver updateDriver(Long id, Driver updatedDriver) {
-        Driver driver = getDriverById(id);
+    public Driver updateDriver(Long id, Driver driverDetails) {
+        Driver driver = driverRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Driver not found"));
 
-        driver.setFullName(updatedDriver.getFullName());
-        driver.setPhoneNumber(updatedDriver.getPhoneNumber());
-        driver.setDateOfBirth(updatedDriver.getDateOfBirth());
-        driver.setNote(updatedDriver.getNote());
+        driver.setEmployeeCode(driverDetails.getEmployeeCode());
+        driver.setFullName(driverDetails.getFullName());
+        driver.setPhoneNumber(driverDetails.getPhoneNumber());
+        driver.setDateOfBirth(driverDetails.getDateOfBirth());
+        driver.setNote(driverDetails.getNote());
+        driver.setCreatedAt(driverDetails.getCreatedAt());
+        driver.setStatus(driverDetails.getStatus());
 
-        if (updatedDriver.getStatus() != null) {
-            driver.setStatus(updatedDriver.getStatus());
-        }
+        // Quan trọng: cập nhật 2 field bị lỗi
+        driver.setBasicSalary(driverDetails.getBasicSalary());
+        driver.setAdvancePayment(driverDetails.getAdvancePayment());
 
         return driverRepository.save(driver);
     }
+
 
     // Xóa tài xế
     public void deleteDriver(Long id) {
@@ -713,13 +764,13 @@ public class WarehouseService {
         }).orElseThrow(() -> new RuntimeException(" Không tìm thấy loại chi phí với ID: " + id));
     }
 
-    public void deleteExpenseType(Long id) {
+    public String deleteExpenseType(Long id) {
         if (!expenseTypeRepository.existsById(id)) {
-            throw new RuntimeException(" Không thể xóa! Loại chi phí với ID " + id + " không tồn tại.");
+            throw new RuntimeException("Không thể xóa! Loại chi phí với mã loại chi phí " + id + " không tồn tại.");
         }
         expenseTypeRepository.deleteById(id);
+        return "Đã xóa mã loại chi phí  " + id + " thành công!";
     }
-
     // ================== ROUTE ==================
     public List<Route> getAllRoutes() {
         List<Route> routes = routeRepository.findAll();
@@ -806,6 +857,7 @@ public class WarehouseService {
 
         return scheduleSalaryRepository.save(scheduleSalary);
     }
+
 }
 
 

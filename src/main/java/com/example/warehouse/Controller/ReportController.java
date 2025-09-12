@@ -1,42 +1,49 @@
 package com.example.warehouse.Controller;
 
-import com.example.warehouse.Dto.Request.*;
+import com.example.warehouse.Dto.Response.DriverReportResponse;
 import com.example.warehouse.Dto.Response.*;
 import com.example.warehouse.Service.ReportService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/reports")
-@RequiredArgsConstructor
 public class ReportController {
 
     private final ReportService reportService;
 
-    @PostMapping("/salary/summary")
-    public List<SalarySummaryResponse> getSalarySummary(@RequestBody SalaryRequest request) {
-        return reportService.getSalarySummary(request);
+    public ReportController(ReportService reportService) {
+        this.reportService = reportService;
     }
 
-    @PostMapping("/salary/detail")
-    public List<SalaryDetailResponse> getSalaryDetail(@RequestBody SalaryRequest request) {
-        return reportService.getSalaryDetail(request);
+    // Báo cáo Lương
+    @GetMapping("/salary/{driverId}")
+    public DriverReportResponse getSalaryReport(@PathVariable Long driverId) {
+        return reportService.getSalaryReportAllByDriver(driverId);
     }
 
-    @PostMapping("/salary/config")
-    public void updateSalaryConfig(@RequestBody SalaryConfigRequest request) {
-        reportService.updateSalaryConfig(request);
+    // Báo cáo Chi phí
+    @GetMapping("/costs/truck/{truckId}")
+    public VehicleCostResponse getVehicleCost(@PathVariable Long truckId) {
+        return reportService.getVehicleCostReport(truckId);
     }
 
-    @PostMapping("/expenses/truck")
-    public List<ExpenseResponse> getTruckExpenses(@RequestBody ReportFilterRequest request) {
-        return reportService.getTruckExpenses(request);
+    @GetMapping("/costs/all")
+    public VehicleCostSummaryResponse getVehicleCostAll() {
+        return reportService.getVehicleCostAll();
     }
 
-    @PostMapping("/expenses/trucks/summary")
-    public List<TruckExpenseSummaryResponse> getAllTruckExpenses(@RequestBody ReportFilterRequest request) {
-        return reportService.getAllTruckExpenses(request);
+    // Báo cáo Lịch trình
+    @GetMapping("/schedules/truck/{truckId}")
+    public List<ScheduleDetailResponse> getSchedulesForTruck(@PathVariable Long truckId) {
+        return reportService.getScheduleDetailsAllByTruck(truckId);
+    }
+
+    @GetMapping("/schedules")
+    public AllScheduleDetailResponse getAllSchedules() {
+        return reportService.getScheduleDetailsAll();
     }
 }

@@ -10,11 +10,7 @@ public class Truck {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    // Liên kết với Driver
-    @OneToOne
 
-    @JoinColumn(name = "driver_id", referencedColumnName = "id")
-    private Driver driver;
 
     @Column(nullable = false, unique = true)
     private String licensePlate; // Biển số xe
@@ -46,13 +42,7 @@ public class Truck {
         this.licensePlate = licensePlate;
     }
 
-    public Driver getDriver() {
-        return driver;
-    }
 
-    public void setDriver(Driver driver) {
-        this.driver = driver;
-    }
 
     public Long getId() {
         return id;

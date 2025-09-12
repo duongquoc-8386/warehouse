@@ -2,11 +2,19 @@ package com.example.warehouse.Entity;
 
 import com.example.warehouse.Enum.ScheduleStatus;
 import jakarta.persistence.*;
+import lombok.*;
 
 import java.math.BigDecimal;
+import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Locale;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @Entity
 public class Schedule {
 
@@ -14,12 +22,14 @@ public class Schedule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Chi phí (nhưng thực tế sẽ lấy từ scheduleSalary)
+    private Double cost;
+
     private String title;
     private LocalDate date;
     private String description;
     private String startLocation;
     private String endLocation;
-
 
     @ManyToOne
     @JoinColumn(name = "driver_id", nullable = false)
@@ -40,99 +50,23 @@ public class Schedule {
 
     private String proofDocumentPath;
 
-    public Long getId() {
-        return id;
+    @Transient
+    private String costFormatted;
+
+    //  Luôn trả cost = scheduleSalary
+    public Double getCost() {
+        if (this.scheduleSalary != null) {
+            return this.scheduleSalary.doubleValue();
+        }
+        return this.cost;
     }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public LocalDate getDate() {
-        return date;
-    }
-
-    public void setDate(LocalDate date) {
-        this.date = date;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getStartLocation() {
-        return startLocation;
-    }
-
-    public void setStartLocation(String startLocation) {
-        this.startLocation = startLocation;
-    }
-
-    public String getEndLocation() {
-        return endLocation;
-    }
-
-    public void setEndLocation(String endLocation) {
-        this.endLocation = endLocation;
-    }
-
-    public Driver getDriver() {
-        return driver;
-    }
-
-    public void setDriver(Driver driver) {
-        this.driver = driver;
-    }
-
-    public Truck getTruck() {
-        return truck;
-    }
-
-    public void setTruck(Truck truck) {
-        this.truck = truck;
-    }
-
-    public BigDecimal getScheduleSalary() {
-        return scheduleSalary;
-    }
-
-    public void setScheduleSalary(BigDecimal scheduleSalary) {
-        this.scheduleSalary = scheduleSalary;
-    }
-
-    public ScheduleStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(ScheduleStatus status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public String getProofDocumentPath() {
-        return proofDocumentPath;
-    }
-
-    public void setProofDocumentPath(String proofDocumentPath) {
-        this.proofDocumentPath = proofDocumentPath;
+    //  Format cost thành tiền VNĐ
+    public String getCostFormatted() {
+        if (this.scheduleSalary != null) {
+            NumberFormat formatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
+            return formatter.format(this.scheduleSalary);
+        }
+        return costFormatted;
     }
 }

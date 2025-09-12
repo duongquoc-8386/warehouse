@@ -6,10 +6,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
-    List<Expense> findByStatus(ExpenseStatus status);
-    @Query("SELECT e FROM Expense e JOIN Schedule s ON s.truck.id = e.id WHERE s.driver.id = :driverId AND FUNCTION('DATE_FORMAT', e.createdAt, '%Y-%m') = :month")
-    List<Expense> findByDriverAndMonth(@Param("driverId") Long driverId, @Param("month") String month);
+
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.createdAt BETWEEN :from AND :to")
+    BigDecimal sumExpenseBetween(@Param("from") LocalDate from,
+                                 @Param("to") LocalDate to);
+
+    @Query("SELECT COALESCE(SUM(e.amount), 0) FROM Expense e WHERE e.type = :type AND e.createdAt BETWEEN :from AND :to")
+    BigDecimal sumExpenseByTypeBetween(@Param("type") String type,
+                                       @Param("from") LocalDate from,
+                                       @Param("to") LocalDate to);
+    List<Expense> findByTruckIdAndStatus(Long truckId, ExpenseStatus status);
 }

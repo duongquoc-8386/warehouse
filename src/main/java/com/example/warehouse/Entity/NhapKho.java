@@ -20,5 +20,6 @@ public class NhapKho {
     private Integer  soLuong;
     private String nguonGoc;
     private String nguoiNhap;
+    private LocalDateTime thoigianNhap= LocalDateTime.now();
 
 }

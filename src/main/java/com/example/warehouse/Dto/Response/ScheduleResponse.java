@@ -16,11 +16,13 @@ public class ScheduleResponse {
     private String description;
     private String startLocation;
     private String endLocation;
-    private Driver driver;
-    private Truck truck;
+    private Driver  driver;
+    private Truck  truck;
     private BigDecimal scheduleSalary;
     private String status;
     private LocalDateTime createdAt;
+    private Double cost;
+    private String costFormatted;
     private String proofDocumentPath;
 
     public static ScheduleResponse fromEntity(Schedule schedule) {

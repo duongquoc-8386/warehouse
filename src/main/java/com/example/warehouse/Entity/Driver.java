@@ -4,6 +4,7 @@ import com.example.warehouse.Enum.DriverStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
@@ -36,6 +37,11 @@ public class Driver {
 
     private DriverStatus status;
 
+    @Column(precision = 15, scale = 2)
+    private BigDecimal basicSalary;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal advancePayment;
 
     public Long getId() {
         return id;
@@ -99,5 +105,21 @@ public class Driver {
 
     public void setStatus(DriverStatus status) {
         this.status = status;
+    }
+
+    public BigDecimal getBasicSalary() {
+        return basicSalary;
+    }
+
+    public void setBasicSalary(BigDecimal basicSalary) {
+        this.basicSalary = basicSalary;
+    }
+
+    public BigDecimal getAdvancePayment() {
+        return advancePayment;
+    }
+
+    public void setAdvancePayment(BigDecimal advancePayment) {
+        this.advancePayment = advancePayment;
     }
 }

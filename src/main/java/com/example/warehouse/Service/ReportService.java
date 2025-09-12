@@ -1,27 +1,18 @@
 package com.example.warehouse.Service;
 
-import com.example.warehouse.Dto.Request.*;
 import com.example.warehouse.Dto.Response.*;
-import lombok.Setter;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
-
 
 public interface ReportService {
 
-    // Báo cáo lương tổng hợp
-    List<SalarySummaryResponse> getSalarySummary(SalaryRequest request);
+    // Báo cáo lương
+    DriverReportResponse getSalaryReportAllByDriver(Long driverId);
 
-    //  Báo cáo chi tiết lương
-    List<SalaryDetailResponse> getSalaryDetail(SalaryRequest request);
+    // Báo cáo chi phí
+    VehicleCostResponse getVehicleCostReport(Long truckId);
+    VehicleCostSummaryResponse getVehicleCostAll();
 
-    // Cấu hình lương
-    void updateSalaryConfig(SalaryConfigRequest request);
-
-    //  Báo cáo chi phí 1 xe
-    List<ExpenseResponse> getTruckExpenses(ReportFilterRequest request);
-
-    //  Báo cáo chi phí tất cả xe
-    List<TruckExpenseSummaryResponse> getAllTruckExpenses(ReportFilterRequest request);
+    // Báo cáo lịch trình
+    List<ScheduleDetailResponse> getScheduleDetailsAllByTruck(Long truckId);
+    AllScheduleDetailResponse getScheduleDetailsAll();
 }

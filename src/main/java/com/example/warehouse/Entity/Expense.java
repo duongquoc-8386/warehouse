@@ -40,6 +40,9 @@ public class Expense {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+    @ManyToOne
+    @JoinColumn(name = "truck_id")
+    private Truck truck;
 
     // ---- Tự động mặc định khi tạo mới ----
     @PrePersist

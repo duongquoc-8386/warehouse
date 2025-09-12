@@ -14,5 +14,6 @@ public class TruckResponse {
     private double capacity;
     private String status;
     private Long driverId;
-    private String driverName;
+    private String driverFullName;
+
 }

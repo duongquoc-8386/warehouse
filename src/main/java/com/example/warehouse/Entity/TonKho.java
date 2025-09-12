@@ -17,6 +17,7 @@ public class TonKho {
     private String loaiHang;
     private int soLuong;   // số lượng hiện có
 
+
     public Long getId() {
         return id;
     }

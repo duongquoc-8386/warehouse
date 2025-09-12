@@ -42,7 +42,8 @@ public class WarehouseController {
     }
 
     @DeleteMapping("/nhap/{id}")
-    public ResponseEntity<?> deleteNhapKho(@PathVariable Long id) {
+    public ResponseEntity<?> deleteNhapKho(@PathVariable("id") Long id) {
+
         warehouseService.deleteNhapKho(id);
         return ResponseEntity.ok("Xóa nhập kho thành công");
     }
@@ -197,7 +198,7 @@ public class WarehouseController {
         // ================== PHÊ DUYỆT LỊCH TRÌNH ==================
         @PostMapping("/schedules/{id}/submit")
         @PreAuthorize("hasRole('ADMIN')")
-        public ResponseEntity<String> submitSchedule (@PathVariable Long id){
+        public ResponseEntity<String> submitSchedule (@PathVariable("id") Long id){
             warehouseService.submitSchedule(id);
             return ResponseEntity.ok("Lịch trình đã được nộp để phê duyệt");
         }
