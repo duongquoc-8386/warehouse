@@ -12,14 +12,14 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class AllScheduleDetailResponse {
-    private List<ScheduleDetailResponse> schedules; // tất cả lịch trình
+    private List<TripDetailResponse> schedules; // tất cả lịch trình
     private double totalCostAllTrucks;             // tổng chi phí tất cả xe
 
-    public List<ScheduleDetailResponse> getSchedules() {
+    public List<TripDetailResponse> getSchedules() {
         return schedules;
     }
 
-    public void setSchedules(List<ScheduleDetailResponse> schedules) {
+    public void setSchedules(List<TripDetailResponse> schedules) {
         this.schedules = schedules;
     }
 

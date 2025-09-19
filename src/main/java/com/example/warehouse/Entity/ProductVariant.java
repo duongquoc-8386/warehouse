@@ -1,48 +1,36 @@
 package com.example.warehouse.Entity;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
+@Data
 @Entity
 @Table(name = "product_variants")
 public class ProductVariant {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String tenBienThe;
+    @Column(nullable = false)
+    private String variantName;
 
-    private int soLuong;
+    @Column(nullable = false, unique = true)
+    private String sku;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
+    public ProductVariant() {}
 
-    public Long getId() {
-        return id;
-    }
 
-    public String getTenBienThe() {
-        return tenBienThe;
-    }
+    public Long getId() { return id; }
 
-    public void setTenBienThe(String tenBienThe) {
-        this.tenBienThe = tenBienThe;
-    }
+    public String getVariantName() { return variantName; }
+    public void setVariantName(String variantName) { this.variantName = variantName; }
 
-    public int getSoLuong() {
-        return soLuong;
-    }
+    public String getSku() { return sku; }
+    public void setSku(String sku) { this.sku = sku; }
 
-    public void setSoLuong(int soLuong) {
-        this.soLuong = soLuong;
-    }
-
-    public Product getProduct() {
-        return product;
-    }
-
-    public void setProduct(Product product) {
-        this.product = product;
-    }
+    public Product getProduct() { return product; }
+    public void setProduct(Product product) { this.product = product; }
 }

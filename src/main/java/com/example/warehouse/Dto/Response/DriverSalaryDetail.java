@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 
 public class DriverSalaryDetail {
-    private Long scheduleId;
+    private Long TripId;
     private double routeSalary;   // Lương lịch trình
     private double cost;          // Chi phí liên quan
     private String description;   // Mô tả chuyến đi

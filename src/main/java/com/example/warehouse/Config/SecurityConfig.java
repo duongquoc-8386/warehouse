@@ -32,13 +32,21 @@ public class SecurityConfig {
                 .sessionManagement(session
                         -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/warehouse/**").permitAll()
-                        .requestMatchers("/api/reports/**").permitAll()
-                        .requestMatchers("/api/warehouse/register", "/api/warehouse/login").permitAll()
-                        .requestMatchers("/api/warehouse/excel/**").permitAll()
 
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/nhanvien/**").hasRole("NHANVIEN")
+                                // Cho phép swagger
+                                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                                // Cho phép register, login, excel
+                                .requestMatchers("/api/warehouse/register", "/api/warehouse/login", "/api/warehouse/excel/**").permitAll()
+                                // Sản phẩm: chỉ nhân viên + admin
+                                .requestMatchers("/api/warehouse/products/**").hasAnyRole("NHANVIEN", "ADMIN")
+                                // Báo cáo: cho phép truy cập tự do
+                                .requestMatchers("/api/reports/**").permitAll()
+                                .requestMatchers("/api/warehouse/**").permitAll()
+                                // Admin
+                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                                // Nhân viên
+                                .requestMatchers("/api/nhanvien/**").hasAnyRole("NHANVIEN","ADMIN")
+                        // Các API còn lại thì bắt buộc authenticated
                 )
 
                 .addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);

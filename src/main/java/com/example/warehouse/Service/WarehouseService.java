@@ -1,583 +1,296 @@
 package com.example.warehouse.Service;
 
-import com.example.warehouse.Dto.Request.ScheduleRequest;
+import com.example.warehouse.Dto.Request.TripRequest;
 import com.example.warehouse.Dto.Request.TruckRequest;
-import com.example.warehouse.Dto.Response.PendingScheduleResponse;
+import com.example.warehouse.Dto.Response.PendingTripResponse;
 import com.example.warehouse.Dto.Response.TruckResponse;
 import com.example.warehouse.Entity.*;
 import com.example.warehouse.Enum.*;
 import com.example.warehouse.Repository.*;
-import com.example.warehouse.Validator.ProductCategoryValidator;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import java.math.BigDecimal;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.text.DecimalFormat;
-
-
-
-
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
+@RequiredArgsConstructor
 public class WarehouseService {
 
-    private final NhapKhoRepository nhapKhoRepository;
-    private final XuatKhoRepository xuatKhoRepository;
-    private final TonKhoRepository tonKhoRepository;
+    // ---------------- repositories ----------------
+    private final InventoryTransactionRepository inventoryTransactionRepository;
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
     private final ExpenseRepository expenseRepository;
-    private final ScheduleRepository scheduleRepository;
+    private final TripRepository tripRepository;
     private final DriverRepository driverRepository;
     private final SalaryConfigRepository salaryConfigRepository;
-    private final ScheduleSalaryRepository scheduleSalaryRepository;
-
-
-    @Autowired
-    private DocumentRepository documentRepository;
-
-    private TruckRepository truckRepository;
-
-    private ExpenseTypeRepository expenseTypeRepository;
-
+    private final TripSalaryRepository tripSalaryRepository;
+    private final DocumentRepository documentRepository;
+    private final TruckRepository truckRepository;
+    private final ExpenseTypeRepository expenseTypeRepository;
     private final RouteRepository routeRepository;
 
-
-    public WarehouseService(NhapKhoRepository nhapKhoRepository,
-                            XuatKhoRepository xuatKhoRepository,
-                            TonKhoRepository tonKhoRepository,
-                            ProductRepository productRepository,
-                            ProductVariantRepository productVariantRepository,
-                            ExpenseRepository expenseRepository,
-                            ScheduleRepository scheduleRepository,
-                            DocumentRepository documentRepository,
-                            TruckRepository truckRepository,
-                            DriverRepository driverRepository,
-                            ExpenseTypeRepository expenseTypeRepository,
-                            RouteRepository routeRepository,
-                            SalaryConfigRepository salaryconfigRepository,
-                            ScheduleSalaryRepository scheduleSalaryRepository) {
-
-        this.nhapKhoRepository = nhapKhoRepository;
-        this.xuatKhoRepository = xuatKhoRepository;
-        this.tonKhoRepository = tonKhoRepository;
-        this.productRepository = productRepository;
-        this.productVariantRepository = productVariantRepository;
-        this.expenseRepository = expenseRepository;
-        this.scheduleRepository = scheduleRepository;
-        this.documentRepository = documentRepository;
-        this.truckRepository = truckRepository;
-        this.driverRepository = driverRepository;
-        this.expenseTypeRepository = expenseTypeRepository;
-        this.routeRepository = routeRepository;
-        this.salaryConfigRepository = salaryconfigRepository;
-        this.scheduleSalaryRepository = scheduleSalaryRepository;
-    }
-
-
+    // ---------------- utils ----------------
     private String formatMoney(Double amount) {
         if (amount == null) return "0 VND";
         DecimalFormat df = new DecimalFormat("#,###");
         return df.format(amount) + " VND";
-
-
-
     }
 
+    // ======================================================
+    // INVENTORY
+    // ======================================================
+    @Transactional
 
-    // ================== Nhập kho ==================
-    public NhapKho nhapKho(NhapKho nhapKho) {
-        if (nhapKho.getTenHangHoa() == null || nhapKho.getTenHangHoa().isBlank()) {
-            throw new RuntimeException("Tên hàng hóa không được để trống!");
-        }
-        if (nhapKho.getSoLuong() == null || nhapKho.getSoLuong() <= 0) {
-            throw new RuntimeException("Số lượng nhập phải lớn hơn 0!");
-        }
+    private String generateReferenceCode(TransactionType type) {
+        String prefix = switch (type) {
+            case IMPORT -> "IMP";
+            case EXPORT -> "EXP";
+            case RETURN -> "RET";
+            case ADJUSTMENT -> "ADJ";
+        };
 
-        if (!ProductCategoryValidator.isValid(
-                nhapKho.getTenHangHoa(),
-                LoaiHang.valueOf(nhapKho.getLoaiHang().toUpperCase())
-        )) {
-            throw new IllegalArgumentException("Loại hàng '" + nhapKho.getLoaiHang() + "' không đúng với tên hàng '" + nhapKho.getTenHangHoa() + "'!");
-        }
-        NhapKho saved = nhapKhoRepository.save(nhapKho);
-
-        TonKho ton = tonKhoRepository.findByTenHangHoaContainingIgnoreCase(nhapKho.getTenHangHoa())
-                .stream().findFirst()
-                .orElse(TonKho.builder()
-                        .tenHangHoa(nhapKho.getTenHangHoa())
-                        .loaiHang(nhapKho.getLoaiHang())
-                        .soLuong(0)
-                        .build());
-
-        ton.setSoLuong(ton.getSoLuong() + nhapKho.getSoLuong());
-        tonKhoRepository.save(ton);
-
-        return saved;
+        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        long count = inventoryTransactionRepository.count() + 1; // hoặc count theo ngày
+        return prefix + "-" + datePart + "-" + String.format("%04d", count);
     }
 
-    // Lấy toàn bộ nhập kho
-    public List<NhapKho> getAllNhapKho() {
-        return nhapKhoRepository.findAll();
-    }
+    public InventoryTransaction createTransaction(Long productId, TransactionType type, int quantity, String createdBy, String referenceCode, String note) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm với id: " + productId));
 
-    public NhapKho updateNhapKho(Long id, NhapKho updated) {
-        NhapKho existing = nhapKhoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu nhập!"));
-
-        int diff = updated.getSoLuong() - existing.getSoLuong();
-
-        TonKho ton = tonKhoRepository.findByTenHangHoaContainingIgnoreCase(existing.getTenHangHoa())
-                .stream().findFirst()
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tồn kho!"));
-
-        ton.setSoLuong(ton.getSoLuong() + diff);
-        tonKhoRepository.save(ton);
-
-        existing.setSoLuong(updated.getSoLuong());
-        existing.setLoaiHang(updated.getLoaiHang());
-        existing.setTenHangHoa(updated.getTenHangHoa());
-        existing.setThoigianNhap(updated.getThoigianNhap());
-
-        return nhapKhoRepository.save(existing);
-    }
-
-    public void deleteNhapKho(Long id) {
-        NhapKho existing = nhapKhoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu nhập!"));
-
-        TonKho ton = tonKhoRepository.findByTenHangHoaContainingIgnoreCase(existing.getTenHangHoa())
-                .stream().findFirst()
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tồn kho!"));
-
-        ton.setSoLuong(ton.getSoLuong() - existing.getSoLuong());
-        tonKhoRepository.save(ton);
-
-        nhapKhoRepository.deleteById(id);
-    }
-
-    // ================== Xuất kho ==================
-    public XuatKho xuatKho(XuatKho xuatKho) {
-        if (xuatKho.getTenHangHoa() == null || xuatKho.getTenHangHoa().isBlank()) {
-            throw new RuntimeException("Tên hàng hóa không được để trống!");
-        }
-        if (xuatKho.getSoLuong() == null || xuatKho.getSoLuong() <= 0) {
-            throw new RuntimeException("Số lượng xuất phải lớn hơn 0!");
+        if (type == TransactionType.EXPORT) {
+            int available = computeStock(productId);
+            if (available < quantity) {
+                throw new RuntimeException("Không đủ hàng trong kho. Hiện có: " + available);
+            }
         }
 
-        TonKho ton = tonKhoRepository.findByTenHangHoaContainingIgnoreCase(xuatKho.getTenHangHoa())
-                .stream().findFirst()
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy hàng '" + xuatKho.getTenHangHoa() + "' trong kho!"));
+        InventoryTransaction tx = InventoryTransaction.builder()
+                .product(product)
+                .type(type)
+                .quantity(quantity)
+                .createdBy(createdBy)
+                .referenceCode(referenceCode != null ? referenceCode : generateReferenceCode(type))
+                .note(note != null ? note : "")
+                .createdAt(LocalDateTime.now())
+                .build();
 
-        if (!ProductCategoryValidator.isValid(
-                xuatKho.getTenHangHoa(),
-                LoaiHang.valueOf(xuatKho.getLoaiHang().toUpperCase())
-        )) {
-            throw new IllegalArgumentException("Loại hàng '" + xuatKho.getLoaiHang() + "' không khớp với tên hàng '" + xuatKho.getTenHangHoa() + "'!");
+
+        try {
+            Integer cur = Optional.ofNullable(product.getCurrentStock()).orElse(0);
+            if (type == TransactionType.IMPORT) product.setCurrentStock(cur + quantity);
+            else if (type == TransactionType.EXPORT) product.setCurrentStock(cur - quantity);
+            else if (type == TransactionType.ADJUSTMENT) product.setCurrentStock(cur + quantity);
+            productRepository.save(product);
+        } catch (Exception ignored) {}
+
+        return inventoryTransactionRepository.save(tx);
+    }
+
+    public InventoryTransaction importStock(Long productId, int quantity, String createdBy, String note) {
+        return createTransaction(productId, TransactionType.IMPORT, quantity, createdBy, null, note);
+    }
+
+    public InventoryTransaction exportStock(Long productId, int quantity, String createdBy, String note) {
+        return createTransaction(productId, TransactionType.EXPORT, quantity, createdBy, null, note);
+    }
+
+    public InventoryTransaction adjustStock(Long productId, int newStock, String createdBy, String note) {
+        int current = computeStock(productId);
+        int diff = newStock - current;
+        return createTransaction(productId, TransactionType.ADJUSTMENT, diff, createdBy, "ADJ-" + UUID.randomUUID().toString().substring(0, 8), note);
+    }
+
+    public int computeStock(Long productId) {
+        Optional<Product> pOpt = productRepository.findById(productId);
+        if (pOpt.isPresent()) {
+            Product p = pOpt.get();
+            try {
+                Integer s = p.getCurrentStock();
+                if (s != null) return s;
+            } catch (Exception ignored) {}
         }
 
-        if (ton.getSoLuong() < xuatKho.getSoLuong()) {
-            throw new RuntimeException("Số lượng tồn (" + ton.getSoLuong() + ") không đủ để xuất " + xuatKho.getSoLuong() + "!");
-        }
-
-        ton.setSoLuong(ton.getSoLuong() - xuatKho.getSoLuong());
-        tonKhoRepository.save(ton);
-
-        return xuatKhoRepository.save(xuatKho);
-    }
-
-    // Lấy toàn bộ xuất kho
-    public List<XuatKho> getAllXuatKho() {
-        return xuatKhoRepository.findAll();
-    }
-
-    public XuatKho updateXuatKho(Long id, XuatKho updated) {
-        XuatKho existing = xuatKhoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu xuất!"));
-
-        TonKho ton = tonKhoRepository.findByTenHangHoaContainingIgnoreCase(existing.getTenHangHoa())
-                .stream().findFirst()
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tồn kho!"));
-
-        int diff = updated.getSoLuong() - existing.getSoLuong();
-
-        if (diff > 0 && ton.getSoLuong() < diff) {
-            throw new RuntimeException("Không đủ hàng để cập nhật phiếu xuất!");
-        }
-
-        ton.setSoLuong(ton.getSoLuong() - diff);
-        tonKhoRepository.save(ton);
-
-        existing.setSoLuong(updated.getSoLuong());
-        existing.setLoaiHang(updated.getLoaiHang());
-        existing.setTenHangHoa(updated.getTenHangHoa());
-        existing.setThoiGianXuat(updated.getThoiGianXuat());
-
-        return xuatKhoRepository.save(existing);
-    }
-
-    public void deleteXuatKho(Long id) {
-        XuatKho existing = xuatKhoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu xuất!"));
-
-        TonKho ton = tonKhoRepository.findByTenHangHoaContainingIgnoreCase(existing.getTenHangHoa())
-                .stream().findFirst()
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tồn kho!"));
-
-        ton.setSoLuong(ton.getSoLuong() + existing.getSoLuong());
-        tonKhoRepository.save(ton);
-
-        xuatKhoRepository.deleteById(id);
-    }
-
-    // ================== Tồn kho ==================
-    public List<TonKho> getTonKho() {
-        return tonKhoRepository.findAll();
-    }
-
-    // tồn kho
-    public HashMap<String, Object> getTonKhoSummary() {
-        HashMap<String, Object> summary = new HashMap<>();
-        List<TonKho> tonList = tonKhoRepository.findAll();
-        int total = tonList.stream().mapToInt(TonKho::getSoLuong).sum();
-        summary.put("totalSoLuong", total);
-        summary.put("tongMatHang", tonList.size());
-        return summary;
-    }
-
-    public List<TonKho> searchTonKho(String keyword) {
-        return tonKhoRepository.findByTenHangHoaContainingIgnoreCase(keyword);
-    }
-
-    public int getTotalInventory() {
-        return tonKhoRepository.findAll()
-                .stream()
-                .mapToInt(TonKho::getSoLuong)
+        List<InventoryTransaction> txs = inventoryTransactionRepository.findByProductId(productId);
+        return txs.stream()
+                .mapToInt(t -> t.getType() == TransactionType.IMPORT ? t.getQuantity() : -t.getQuantity())
                 .sum();
     }
 
-    public List<TonKho> filterByCategory(LoaiHang loaiHang) {
-        return tonKhoRepository.findAll()
-                .stream()
-                .filter(ton -> ton.getLoaiHang().equalsIgnoreCase(loaiHang.name()))
-                .toList();
+    public List<InventoryTransaction> getTransactions(Long productId) {
+        return inventoryTransactionRepository.findByProductId(productId);
     }
 
-    public List<TonKho> filterTonKho(String loaiHang, String tenHangHoa, Integer minSoLuong, Integer maxSoLuong) {
-        return tonKhoRepository.findAll().stream()
-                .filter(tk -> loaiHang == null || tk.getLoaiHang().equalsIgnoreCase(loaiHang))
-                .filter(tk -> tenHangHoa == null || tk.getTenHangHoa().toLowerCase().contains(tenHangHoa.toLowerCase()))
-                .filter(tk -> minSoLuong == null || tk.getSoLuong() >= minSoLuong)
-                .filter(tk -> maxSoLuong == null || tk.getSoLuong() <= maxSoLuong)
-                .toList();
+    public List<InventoryTransaction> getAllTransactions() {
+        return inventoryTransactionRepository.findAll();
     }
 
-    // ================== Product ==================
-    public Product saveProduct(Product product) {
-        return productRepository.save(product);
-    }
-
-    public List<Product> getAllProducts() {
+    public List<Product> getAllStocks() {
         return productRepository.findAll();
     }
 
-    // ================== Product Variant ==================
-    public ProductVariant saveVariant(ProductVariant variant) {
-        return productVariantRepository.save(variant);
+    // ======================================================
+    // EXPENSE
+    // ======================================================
+    public Expense addExpense(Expense expense) {
+        if (expense.getType() != null && expense.getType().getId() != null) {
+            ExpenseType et = expenseTypeRepository.findById(expense.getType().getId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy loại chi phí"));
+            expense.setType(et);
+        }
+
+        if (expense.getCreatedAt() == null) expense.setCreatedAt(LocalDateTime.now());
+        if (expense.getStatus() == null) expense.setStatus(ExpenseStatus.PENDING);
+        return expenseRepository.save(expense);
     }
-
-    public List<ProductVariant> getVariants() {
-        return productVariantRepository.findAll();
-    }
-
-    // ================== Expense ==================
-
-    public Expense addExpense(Expense expense) { return expenseRepository.save(expense); }
-
 
     public List<Expense> getExpenses() {
         return expenseRepository.findAll();
     }
 
-    // Lấy danh sách chi phí đang chờ duyệt
     public List<Expense> getPendingExpenses() {
         return expenseRepository.findAll().stream()
                 .filter(e -> e.getStatus() == ExpenseStatus.PENDING)
-                .toList();
+                .collect(Collectors.toList());
     }
 
-    // DS Đã duyệt
     public Expense approveExpense(Long id) {
-        Expense exp = expenseRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Expense not found"));
-        exp.setStatus(ExpenseStatus.APPROVED);
-        return expenseRepository.save(exp);
+        return updateExpenseStatus(id, ExpenseStatus.APPROVED);
     }
 
-    // DS từ chối
     public Expense rejectExpense(Long id) {
+        return updateExpenseStatus(id, ExpenseStatus.REJECTED);
+    }
+
+    private Expense updateExpenseStatus(Long id, ExpenseStatus status) {
         Expense exp = expenseRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Expense not found"));
-        exp.setStatus(ExpenseStatus.REJECTED);
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chi phí"));
+        exp.setStatus(status);
         return expenseRepository.save(exp);
     }
 
-
-    // ================== Schedule ==================
-    public Schedule addSchedule(ScheduleRequest request) {
-        if (request.getTitle() == null || request.getTitle().isBlank()) {
-            throw new RuntimeException("Tiêu đề lịch trình không được để trống!");
-        }
-        if (request.getDate() == null || request.getDate().isBefore(LocalDate.now())) {
-            throw new RuntimeException("Ngày lịch trình phải từ hôm nay trở đi!");
-        }
-
-        Schedule schedule = new Schedule();
-        schedule.setTitle(request.getTitle());
-        schedule.setDate(request.getDate());
-        schedule.setDescription(
-                (request.getDescription() == null || request.getDescription().isEmpty())
-                        ? "Chưa cập nhật"
-                        : request.getDescription()
-        );
-        schedule.setStartLocation(
-                (request.getStartLocation() == null || request.getStartLocation().isEmpty())
-                        ? "Chưa cập nhật"
-                        : request.getStartLocation()
-        );
-        schedule.setEndLocation(
-                (request.getEndLocation() == null || request.getEndLocation().isEmpty())
-                        ? "Chưa cập nhật"
-                        : request.getEndLocation()
-        );
-        schedule.setScheduleSalary(
-                request.getScheduleSalary() != null ? request.getScheduleSalary() : BigDecimal.ZERO
-        );
-        schedule.setStatus(
-                request.getStatus() != null ? ScheduleStatus.valueOf(request.getStatus()) : ScheduleStatus.PENDING
-        );
-        schedule.setCreatedAt(LocalDateTime.now());
-        schedule.setProofDocumentPath("chưa có tài liệu");
-
-        // Lấy truck
-        Truck truck = truckRepository.findById(request.getTruckId())
-                .orElseThrow(() -> new RuntimeException("Truck not found"));
-
-
-
-        schedule.setTruck(truck);
-
-
-        List<Schedule> schedules = scheduleRepository.findAll();
-        schedules.forEach(s -> s.setCostFormatted(formatMoney(s.getCost())));
-
-        return scheduleRepository.save(schedule);
+    public List<ExpenseType> getAllExpenseTypes() {
+        return expenseTypeRepository.findAll();
     }
 
-
-
-    public List<Schedule> getSchedules() {
-        return scheduleRepository.findAll();
+    public ExpenseType createExpenseType(ExpenseType expenseType) {
+        return expenseTypeRepository.save(expenseType);
     }
 
-    public Schedule uploadProof(Long id, MultipartFile file) throws IOException {
-        Schedule schedule = scheduleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch trình!"));
+    public ExpenseType updateExpenseType(Long id, ExpenseType expenseType) {
+        return expenseTypeRepository.findById(id).map(et -> {
+            et.setName(expenseType.getName());
+            return expenseTypeRepository.save(et);
+        }).orElseThrow(() -> new RuntimeException("Không tìm thấy loại chi phí với ID: " + id));
+    }
 
-        List<Schedule> schedules = scheduleRepository.findAll();
-        for (Schedule s : schedules) {
-            if (s.getCost() == null) {
-                s.setCost(s.getScheduleSalary().doubleValue());
-            }
-            s.setCostFormatted(String.format("%,.0f VND", s.getCost()));
+    public void deleteExpenseType(Long id) {
+        expenseTypeRepository.deleteById(id);
+    }
+    public Expense updateExpense(Long id, Expense expense) {
+        Expense existing = expenseRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chi phí"));
+
+        if (expense.getType() != null && expense.getType().getId() != null) {
+            ExpenseType et = expenseTypeRepository.findById(expense.getType().getId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy loại chi phí"));
+            existing.setType(et);
         }
 
-        // Lưu file vào thư mục local
-        String uploadDir = "uploads/";
-        java.io.File dir = new java.io.File(uploadDir);
-        if (!dir.exists()) dir.mkdirs();
+        existing.setDescription(expense.getDescription());
+        existing.setAmount(expense.getAmount());
+        existing.setStatus(expense.getStatus());
 
-        String filePath = uploadDir + file.getOriginalFilename();
-        file.transferTo(new java.io.File(filePath));
-
-        schedule.setProofDocumentPath(filePath);
-        return scheduleRepository.save(schedule);
+        return expenseRepository.save(existing);
     }
 
-    public Schedule approveSchedule(Long id) {
-        Schedule schedule = scheduleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch trình!"));
-        schedule.setStatus(ScheduleStatus.APPROVED);
-        List<Schedule> schedules = scheduleRepository.findAll();
-        schedules.forEach(s -> s.setCostFormatted(formatMoney(s.getCost())));
-
-        for (Schedule s : schedules) {
-            if (s.getCost() == null) {
-                s.setCost(s.getScheduleSalary().doubleValue());
-            }
-            s.setCostFormatted(String.format("%,.0f VND", s.getCost()));
+    public void deleteExpense(Long id) {
+        if (!expenseRepository.existsById(id)) {
+            throw new RuntimeException("Không tìm thấy chi phí");
         }
-        return scheduleRepository.save(schedule);
+        expenseRepository.deleteById(id);
     }
-
-    public Schedule rejectSchedule(Long id) {
-        Schedule schedule = scheduleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy lịch trình!"));
-        schedule.setStatus(ScheduleStatus.REJECTED);
-        List<Schedule> schedules = scheduleRepository.findAll();
-        schedules.forEach(s -> s.setCostFormatted(formatMoney(s.getCost())));
-        for (Schedule s : schedules) {
-            if (s.getCost() == null) {
-                s.setCost(s.getScheduleSalary().doubleValue());
-            }
-            s.setCostFormatted(String.format("%,.0f VND", s.getCost()));
-        }
-        return scheduleRepository.save(schedule);
-    }
-
-
-
-    // Upload chứng từ
+    // ======================================================
+    // DOCUMENT
+    // ======================================================
     public String uploadDocument(MultipartFile file) throws IOException {
-        try {
-            // Tạo entity Document
-            Document doc = new Document();
-            doc.setFileName(file.getOriginalFilename());
-            doc.setContentType(file.getContentType());
-            doc.setData(file.getBytes());
+        Document doc = new Document();
+        doc.setFileName(file.getOriginalFilename());
+        doc.setContentType(file.getContentType());
+        doc.setData(file.getBytes());
+        documentRepository.save(doc);
 
-            // Lưu file vào DB
-            documentRepository.save(doc);
-            System.out.println("Đã lưu file vào DB: " + file.getOriginalFilename());
+        Path path = Paths.get("uploads/" + file.getOriginalFilename());
+        Files.createDirectories(path.getParent());
+        Files.write(path, file.getBytes());
 
-            // Đồng thời lưu file ra thư mục uploads/
-            Path path = Paths.get("uploads/" + file.getOriginalFilename());
-            Files.createDirectories(path.getParent());
-            Files.write(path, file.getBytes());
+        return "Upload file thành công: " + path.toString();
+    }
 
-            return "Upload file thành công: " + path.toString();
+    public List<Document> getAllDocuments() {
+        return documentRepository.findAll();
+    }
+    private final Path rootLocation = Paths.get("uploads");
+
+    // Liệt kê file
+    public List<String> listDocuments() {
+        try (Stream<Path> stream = Files.walk(this.rootLocation, 1)) {
+            return stream.filter(path -> !path.equals(this.rootLocation))
+                    .map(path -> path.getFileName().toString())
+                    .collect(Collectors.toList());
         } catch (IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException("Lỗi upload file", e);
+            throw new RuntimeException("Không thể đọc thư mục tài liệu", e);
         }
     }
 
-
-    // Submit Schedule
-    public Schedule submitSchedule(Long scheduleId) {
-        Schedule schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new RuntimeException("Schedule not found"));
-
-        // Chuyển trạng thái sang PENDING
-        schedule.setStatus(ScheduleStatus.PENDING);
-
-        return scheduleRepository.save(schedule);
-
-    }
-
-    public List<PendingScheduleResponse> getPendingSchedules() {
-        List<Schedule> schedules = scheduleRepository.findByStatus(ScheduleStatus.PENDING);
-        return schedules.stream()
-                .map(s -> new PendingScheduleResponse(
-                        s.getId(),
-                        s.getTitle(),
-                        s.getStartLocation(),
-                        s.getEndLocation(),
-                        s.getStatus().name()
-                ))
-                .toList();
-
-
-
-    }
-
-
-
-
-    // ================== Export Excel ==================
-    public ByteArrayInputStream exportExcel() throws IOException {
-        List<TonKho> tonKhoList = tonKhoRepository.findAll();
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("TonKho");
-
-        // Header
-        Row header = sheet.createRow(0);
-        header.createCell(0).setCellValue("Tên Hàng Hóa");
-        header.createCell(1).setCellValue("Loại Hàng");
-        header.createCell(2).setCellValue("Số Lượng");
-
-        // Data
-        int rowIdx = 1;
-        for (TonKho ton : tonKhoList) {
-            Row row = sheet.createRow(rowIdx++);
-            row.createCell(0).setCellValue(ton.getTenHangHoa());
-            row.createCell(1).setCellValue(ton.getLoaiHang());
-            row.createCell(2).setCellValue(ton.getSoLuong());
+    // Download file
+    public byte[] downloadDocument(String filename) {
+        try {
+            Path file = rootLocation.resolve(filename);
+            return Files.readAllBytes(file);
+        } catch (IOException e) {
+            throw new RuntimeException("Không thể tải file: " + filename, e);
         }
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        workbook.write(out);
-        workbook.close();
-        return new ByteArrayInputStream(out.toByteArray());
     }
 
-    // ================== Import Excel ==================
-    public void importExcel(MultipartFile file) throws IOException {
-        Workbook workbook = new XSSFWorkbook(file.getInputStream());
-        Sheet sheet = workbook.getSheetAt(0);
-
-        for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-            Row row = sheet.getRow(i);
-            if (row == null || row.getCell(0) == null || row.getCell(1) == null || row.getCell(2) == null)
-                continue;
-
-            String ten = row.getCell(0).getStringCellValue();
-            String loai = row.getCell(1).getStringCellValue();
-            int soLuong = (int) row.getCell(2).getNumericCellValue();
-
-            TonKho ton = tonKhoRepository.findByTenHangHoaContainingIgnoreCase(ten)
-                    .stream()
-                    .findFirst()
-                    .orElse(TonKho.builder()
-                            .tenHangHoa(ten)
-                            .loaiHang(loai)
-                            .soLuong(0)
-                            .build());
-
-            ton.setSoLuong(ton.getSoLuong() + soLuong); // cộng dồn
-            tonKhoRepository.save(ton);
+    // Xóa file
+    public void deleteDocument(String filename) {
+        try {
+            Path file = rootLocation.resolve(filename);
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            throw new RuntimeException("Không thể xóa file: " + filename, e);
         }
-        workbook.close();
     }
-
-
-// ================== Truck ==================
-
-    // Thêm xe tải
+    // ======================================================
+    // TRUCK
+    // ======================================================
     public TruckResponse addTruck(TruckRequest request) {
-        Driver driver = driverRepository.findById(request.getDriverId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế!"));
+        Driver driver = null;
+        if (request.getDriverId() != null) {
+            driver = driverRepository.findById(request.getDriverId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế!"));
+        }
 
         Truck truck = new Truck();
-        //  KHÔNG set id
         truck.setLicensePlate(request.getLicensePlate());
         truck.setCapacity(request.getCapacity());
-
         truck.setStatus(TruckStatus.valueOf(request.getStatus().toUpperCase()));
+        truck.setDriver(driver);
 
         Truck saved = truckRepository.save(truck);
 
@@ -585,117 +298,77 @@ public class WarehouseService {
                 .id(saved.getId())
                 .licensePlate(saved.getLicensePlate())
                 .capacity(saved.getCapacity())
-
                 .status(saved.getStatus().name())
                 .build();
-
     }
 
-
-    // Lấy danh sách xe tải
     public List<Truck> getAllTrucks() {
         return truckRepository.findAll();
     }
 
-    // Lấy chi tiết xe tải theo ID
     public Truck getTruckById(Long id) {
         return truckRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy xe tải!"));
     }
 
-    // Cập nhật xe tải
     public TruckResponse updateTruck(Long id, TruckRequest request) {
         Truck existing = truckRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy xe tải!"));
 
         existing.setLicensePlate(request.getLicensePlate());
         existing.setCapacity(request.getCapacity());
-        if (request.getDriverId() != null) {
-            Driver driver = driverRepository.findById(request.getDriverId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế!"));
-
-        }
         existing.setStatus(TruckStatus.valueOf(request.getStatus().toUpperCase()));
+        if (request.getDriverId() != null) {
+            Driver d = driverRepository.findById(request.getDriverId()).orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế"));
+            existing.setDriver(d);
+        }
 
         Truck saved = truckRepository.save(existing);
         return TruckResponse.builder()
                 .id(saved.getId())
                 .licensePlate(saved.getLicensePlate())
                 .capacity(saved.getCapacity())
-
                 .status(saved.getStatus().name())
                 .build();
-
-
     }
-    // Xóa xe tải
+
     public String deleteTruck(Long id) {
         Truck truck = truckRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy xe tải với ID: " + id));
-
-        String truckInfo = String.format("Biển số: %s, Sức chứa: %.2f, Trạng thái: %s",
-                truck.getLicensePlate(),
-                truck.getCapacity(),
-                truck.getStatus());
-
         truckRepository.delete(truck);
-
-        return "Đã xóa xe tải thành công! Thông tin xe: " + truckInfo;
+        return "Đã xóa xe tải thành công! Biển số: " + truck.getLicensePlate();
     }
 
-
-    //  Cập nhật trạng thái xe tải
-    public Truck updateTruckStatus(Long id, String status) {
-        Truck truck = truckRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy xe tải!"));
-
-        try {
-            TruckStatus newStatus = TruckStatus.valueOf(status.toUpperCase()); // convert String -> Enum
-            truck.setStatus(newStatus);
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Trạng thái không hợp lệ: " + status);
-        }
-
+    public Truck updateTruckStatus(Long truckId, String status) {
+        Truck truck = truckRepository.findById(truckId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy xe tải"));
+        truck.setStatus(TruckStatus.valueOf(status.toUpperCase()));
         return truckRepository.save(truck);
     }
 
-    // ================== DRIVER ==================
-    // Lấy toàn bộ tài xế
+    // ======================================================
+    // DRIVER
+    // ======================================================
     public List<Driver> getAllDrivers() {
-        List<Driver> drivers = driverRepository.findAll();
-        if (drivers.isEmpty()) {
-            throw new RuntimeException("Hiện tại chưa có tài xế nào trong hệ thống!");
-        }
-        return drivers;
+        return driverRepository.findAll();
     }
 
-    // Lấy tài xế theo ID
     public Driver getDriverById(Long id) {
         return driverRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException(" Không tìm thấy tài xế với ID: " + id));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế!"));
     }
 
-    // Thêm tài xế mới
     public Driver addDriver(Driver driver) {
         driver.setCreatedAt(LocalDate.now());
-
         if (driver.getStatus() == null) {
             driver.setStatus(DriverStatus.AVAILABLE);
         }
-
-        // Check mã nhân viên trùng
-        if (driverRepository.existsByEmployeeCode(driver.getEmployeeCode())) {
-            throw new RuntimeException("Mã nhân viên '" + driver.getEmployeeCode() + "' đã tồn tại, vui lòng nhập mã khác!");
-        }
-
         return driverRepository.save(driver);
     }
 
-    // Cập nhật thông tin tài xế
     public Driver updateDriver(Long id, Driver driverDetails) {
         Driver driver = driverRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Driver not found"));
-
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế"));
         driver.setEmployeeCode(driverDetails.getEmployeeCode());
         driver.setFullName(driverDetails.getFullName());
         driver.setPhoneNumber(driverDetails.getPhoneNumber());
@@ -703,16 +376,11 @@ public class WarehouseService {
         driver.setNote(driverDetails.getNote());
         driver.setCreatedAt(driverDetails.getCreatedAt());
         driver.setStatus(driverDetails.getStatus());
-
-        // Quan trọng: cập nhật 2 field bị lỗi
         driver.setBasicSalary(driverDetails.getBasicSalary());
         driver.setAdvancePayment(driverDetails.getAdvancePayment());
-
         return driverRepository.save(driver);
     }
 
-
-    // Xóa tài xế
     public void deleteDriver(Long id) {
         if (!driverRepository.existsById(id)) {
             throw new RuntimeException("Không thể xóa! Tài xế với ID " + id + " không tồn tại.");
@@ -720,147 +388,224 @@ public class WarehouseService {
         driverRepository.deleteById(id);
     }
 
-    // Cập nhật trạng thái tài xế
     public Driver updateDriverStatus(Long id, DriverStatus status) {
         Driver driver = getDriverById(id);
         driver.setStatus(status);
         return driverRepository.save(driver);
     }
 
-    // Lấy danh sách tài xế theo trạng thái
     public List<Driver> getDriversByStatus(DriverStatus status) {
-        List<Driver> drivers = driverRepository.findByStatus(status);
-        if (drivers.isEmpty()) {
-            throw new RuntimeException(" Không tìm thấy tài xế nào có trạng thái: " + status);
-        }
-        return drivers;
+        return driverRepository.findByStatus(status);
     }
 
-// ----------------- EXPENSE TYPE -----------------
-
-    public List<ExpenseType> getAllExpenseTypes() {
-        List<ExpenseType> types = expenseTypeRepository.findAll();
-        if (types.isEmpty()) {
-            throw new RuntimeException("Hiện chưa có loại chi phí nào trong hệ thống!");
-        }
-        return types;
-    }
-
-    public ExpenseType createExpenseType(ExpenseType expenseType) {
-        if (expenseType.getName() == null || expenseType.getName().isBlank()) {
-            throw new RuntimeException(" Tên loại chi phí không được để trống!");
-        }
-
-        return expenseTypeRepository.save(expenseType);
-    }
-
-    public ExpenseType updateExpenseType(Long id, ExpenseType expenseType) {
-        return expenseTypeRepository.findById(id).map(et -> {
-            if (expenseType.getName() == null || expenseType.getName().isBlank()) {
-                throw new RuntimeException("Tên loại chi phí không hợp lệ!");
-            }
-            et.setName(expenseType.getName());
-            return expenseTypeRepository.save(et);
-        }).orElseThrow(() -> new RuntimeException(" Không tìm thấy loại chi phí với ID: " + id));
-    }
-
-    public String deleteExpenseType(Long id) {
-        if (!expenseTypeRepository.existsById(id)) {
-            throw new RuntimeException("Không thể xóa! Loại chi phí với mã loại chi phí " + id + " không tồn tại.");
-        }
-        expenseTypeRepository.deleteById(id);
-        return "Đã xóa mã loại chi phí  " + id + " thành công!";
-    }
-    // ================== ROUTE ==================
+    // ======================================================
+    // ROUTE
+    // ======================================================
     public List<Route> getAllRoutes() {
-        List<Route> routes = routeRepository.findAll();
-        if (routes.isEmpty()) {
-            throw new RuntimeException("Hiện chưa có tuyến đường nào trong hệ thống!");
-        }
-        return routes;
+        return routeRepository.findAll();
     }
 
-    // Get route by code
     public Route getRouteByCode(String routeCode) {
         return routeRepository.findByRouteCode(routeCode)
-                .orElseThrow(() -> new RuntimeException(" Không tìm thấy tuyến đường với mã: " + routeCode));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tuyến đường với mã: " + routeCode));
     }
 
-    // Create new route
     public Route createRoute(Route route) {
-        if (routeRepository.existsByRouteCode(route.getRouteCode())) {
-            throw new RuntimeException(" Mã tuyến '" + route.getRouteCode() + "' đã tồn tại, vui lòng nhập mã khác!");
-        }
-
-        if (route.getRouteName() == null || route.getRouteName().isBlank()) {
-            throw new RuntimeException("Tên tuyến đường không được để trống!");
-        }
-
         return routeRepository.save(route);
     }
 
-    // Update route
     public Route updateRoute(String routeCode, Route route) {
         Route entity = routeRepository.findByRouteCode(routeCode)
-                .orElseThrow(() -> new RuntimeException(" Không tìm thấy tuyến đường với mã: " + routeCode));
-
-        if (route.getRouteName() == null || route.getRouteName().isBlank()) {
-            throw new RuntimeException("Tên tuyến đường không hợp lệ!");
-        }
-
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tuyến đường với mã: " + routeCode));
         entity.setRouteName(route.getRouteName());
         entity.setTripPrice(route.getTripPrice());
         entity.setNote(route.getNote());
-
         return routeRepository.save(entity);
     }
 
-    // Delete route
     public void deleteRoute(String routeCode) {
         Route entity = routeRepository.findByRouteCode(routeCode)
-                .orElseThrow(() -> new RuntimeException(" Không thể xóa! Tuyến đường với mã " + routeCode + " không tồn tại."));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tuyến đường với mã: " + routeCode));
         routeRepository.delete(entity);
     }
 
+    // ======================================================
+    // TRIP
+    // ======================================================
 
-    // ================== SALARY ==================
 
-    // Thêm cấu hình lương cho tài xế
+
+    public Trip addTrip(TripRequest request) {
+        if (request.getTitle() == null || request.getTitle().isBlank()) {
+            throw new RuntimeException("Tiêu đề chuyến đi không được để trống!");
+        }
+        if (request.getStartTime() == null || request.getStartTime().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Thời gian bắt đầu phải từ hiện tại trở đi!");
+        }
+
+        Truck truck = truckRepository.findById(request.getTruckId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy xe tải"));
+
+        Trip trip = new Trip();
+        trip.setTitle(request.getTitle());
+        trip.setStartTime(request.getStartTime());
+        trip.setEndTime(request.getEndTime());
+        trip.setDescription(Optional.ofNullable(request.getDescription()).orElse("Chưa cập nhật"));
+        trip.setCost(Optional.ofNullable(request.getCost()).orElse(0.0));
+        trip.setStatus(request.getStatus() != null ? TripStatus.valueOf(request.getStatus()) : TripStatus.PENDING);
+        trip.setCreatedAt(LocalDateTime.now());
+        trip.setProofDocumentPath("chưa có tài liệu");
+        trip.setTruck(truck);
+        trip.setDriver(request.getDriverId() != null ? driverRepository.findById(request.getDriverId()).orElse(null) : null);
+        trip.setRoute(request.getRouteId() != null ? routeRepository.findById(request.getRouteId()).orElse(null) : null);
+
+        return tripRepository.save(trip);
+    }
+
+
+    public List<Trip> getAllTrips() {
+        return tripRepository.findAll();
+    }
+
+
+    public Trip getTripById(Long id) {
+        return tripRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chuyến đi với ID: " + id));
+    }
+
+    public void deleteTrip(Long id) {
+        if (!tripRepository.existsById(id)) {
+            throw new RuntimeException("Không tồn tại chuyến đi với ID: " + id);
+        }
+        tripRepository.deleteById(id);
+    }
+
+    public Trip approveTrip(Long id) {
+        return updateTripStatus(id, TripStatus.APPROVED);
+    }
+
+    public Trip rejectTrip(Long id) {
+        return updateTripStatus(id, TripStatus.REJECTED);
+    }
+
+    public Trip submitTrip(Long id) {
+        return updateTripStatus(id, TripStatus.SUBMITTED);
+    }
+
+    private Trip updateTripStatus(Long id, TripStatus status) {
+        Trip trip = tripRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chuyến đi!"));
+        trip.setStatus(status);
+        return tripRepository.save(trip);
+    }
+
+    public Trip updateTrip(Long id, TripRequest request) {
+        Trip trip = tripRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chuyến đi"));
+
+        trip.setRoute(routeRepository.findById(request.getRouteId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tuyến đường")));
+        trip.setTruck(truckRepository.findById(request.getTruckId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy xe tải")));
+        trip.setDriver(driverRepository.findById(request.getDriverId())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế")));
+        trip.setStartTime(request.getStartTime());
+        trip.setEndTime(request.getEndTime());
+
+        return tripRepository.save(trip);
+    }
+
+    public List<PendingTripResponse> getPendingTrips() {
+        List<Trip> trips = tripRepository.findByStatus(TripStatus.PENDING);
+        return trips.stream()
+                .map(t -> new PendingTripResponse(
+                        t.getId(),
+                        t.getTitle(),
+                        t.getStartTime(),
+                        t.getEndTime(),
+                        t.getStatus().name()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    // ======================================================
+    // SALARY
+    // ======================================================
     public SalaryConfig createSalaryConfig(Long driverId, String month, Double baseSalary, Double advance) {
         Driver driver = driverRepository.findById(driverId)
-                .orElseThrow(() -> new RuntimeException("Driver not found"));
-
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế"));
         SalaryConfig config = SalaryConfig.builder()
                 .driver(driver)
                 .month(month)
                 .baseSalary(BigDecimal.valueOf(baseSalary))
                 .advance(BigDecimal.valueOf(advance))
                 .build();
-
         return salaryConfigRepository.save(config);
     }
 
-    // Thêm lương hiệu suất cho 1 chuyến đi
-    public ScheduleSalary createScheduleSalary(Long scheduleId, Long driverId, Double amount) {
+
+
+    public TripSalary createTripSalary(Long tripId, Long driverId, Double amount) {
         Driver driver = driverRepository.findById(driverId)
-                .orElseThrow(() -> new RuntimeException("Driver not found"));
-
-        Schedule schedule = scheduleRepository.findById(scheduleId)
-                .orElseThrow(() -> new RuntimeException("Schedule not found"));
-
-        ScheduleSalary scheduleSalary = ScheduleSalary.builder()
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài xế"));
+        Trip trip = tripRepository.findById(tripId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy chuyến đi"));
+        TripSalary tripSalary = TripSalary.builder()
                 .driver(driver)
-                .schedule(schedule)
-                .amount(BigDecimal.valueOf  (amount))
+                .trip(trip)
+                .amount(BigDecimal.valueOf(amount))
                 .createdAt(LocalDate.now())
                 .build();
+        return tripSalaryRepository.save(tripSalary);
+    }
 
-        return scheduleSalaryRepository.save(scheduleSalary);
+    // ================== TRIP SALARY ==================
+    public List<TripSalary> getTripSalaries() {
+        return tripSalaryRepository.findAll();
+    }
+
+    public TripSalary getTripSalaryById(Long id) {
+        return tripSalaryRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy TripSalary với ID: " + id));
+    }
+    // ================= PRODUCT CRUD =================
+
+    // CREATE
+    public Product createProduct(Product product) {
+        if (product.getCurrentStock() == null) product.setCurrentStock(0);
+        return productRepository.save(product);
+    }
+
+    // READ all
+    public List<Product> getAllProducts() {
+        return productRepository.findAll();
+    }
+
+    // READ by id
+    public Product getProductById(Long id) {
+        return productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm với id: " + id));
+    }
+
+    // UPDATE
+    public Product updateProduct(Long id, Product updated) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm với id: " + id));
+
+        product.setName(updated.getName());
+        product.setCurrentStock(updated.getCurrentStock());
+
+        return productRepository.save(product);
+    }
+
+    // DELETE
+    public void deleteProduct(Long id) {
+        if (!productRepository.existsById(id)) {
+            throw new RuntimeException("Không tìm thấy sản phẩm với id: " + id);
+
+
+    }
+        productRepository.deleteById(id);
     }
 
 }
-
-
-
-
-

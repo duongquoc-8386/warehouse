@@ -1,7 +1,9 @@
 package com.example.warehouse.Entity;
 
 import jakarta.persistence.*;
+import lombok.Data;
 
+@Data
 @Entity
 @Table(name = "documents")
 public class Document {

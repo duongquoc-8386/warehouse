@@ -2,7 +2,6 @@ package com.example.warehouse.Entity;
 
 import com.example.warehouse.Enum.ExpenseStatus;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
@@ -26,20 +25,21 @@ public class Expense {
     private Double amount;
 
     // Loại chi phí: Nhiên liệu, Bảo trì, Sửa chữa, ...
-    @NotBlank(message = "Type is required")
-    @Column(nullable = false)
-    private String type;
+    @ManyToOne
+    @JoinColumn(name = "expense_type_id", nullable = false)
+    private ExpenseType type;
 
     // Mô tả chi phí
     private String description;
 
-    // Trạng thái phê duyệt: PENDING : Chưa duyệt , APPROVED : Được duyệt , REJECTED : Từ chối
+    // Trạng thái phê duyệt
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ExpenseStatus status;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
     @ManyToOne
     @JoinColumn(name = "truck_id")
     private Truck truck;

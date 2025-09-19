@@ -1,6 +1,4 @@
 package com.example.warehouse.Dto.Response;
-import java.math.BigDecimal;
-import java.time.LocalDate;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,20 +9,20 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ScheduleDetailResponse {
-    private Long scheduleId;
+public class TripDetailResponse {
+    private Long tripId;
     private String truckCode;
     private String driverName;
     private String description;
     private double cost;
     private String documentUrl; // nếu có tài liệu đính kèm
 
-    public Long getScheduleId() {
-        return scheduleId;
+    public Long getTripId() {
+        return tripId;
     }
 
-    public void setScheduleId(Long scheduleId) {
-        this.scheduleId = scheduleId;
+    public void setTripId(Long tripId) {
+        this.tripId = tripId;
     }
 
     public String getTruckCode() {

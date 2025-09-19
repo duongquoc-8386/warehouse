@@ -1,25 +1,43 @@
 package com.example.warehouse.Entity;
 
-import com.example.warehouse.Enum.LoaiHang;
+
+import com.example.warehouse.Enum.ProductCategory;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "products")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, unique = true)
-    private String tenHangHoa;
+    private String code; // Mã hàng
 
-    @Enumerated(EnumType.STRING)
+    @Column(name = "ten_hang_hoa")
+    private String name; // Tên hàng
+
+    private String category; // Loại hàng
+
     @Column(nullable = false)
-    private LoaiHang loaiHang;
+    private Integer currentStock = 0; // Tồn kho hiện tại (cập nhật realtime)
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProductVariant> variants;
+    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @JsonIgnore
+    private List<InventoryTransaction> transactions;
 
     public Long getId() {
         return id;
@@ -29,27 +47,43 @@ public class Product {
         this.id = id;
     }
 
-    public String getTenHangHoa() {
-        return tenHangHoa;
+    public String getCode() {
+        return code;
     }
 
-    public void setTenHangHoa(String tenHangHoa) {
-        this.tenHangHoa = tenHangHoa;
+    public void setCode(String code) {
+        this.code = code;
     }
 
-    public LoaiHang getLoaiHang() {
-        return loaiHang;
+    public String getName() {
+        return name;
     }
 
-    public void setLoaiHang(LoaiHang loaiHang) {
-        this.loaiHang = loaiHang;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public List<ProductVariant> getVariants() {
-        return variants;
+    public String getCategory() {
+        return category;
     }
 
-    public void setVariants(List<ProductVariant> variants) {
-        this.variants = variants;
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public Integer getCurrentStock() {
+        return currentStock;
+    }
+
+    public void setCurrentStock(Integer currentStock) {
+        this.currentStock = currentStock;
+    }
+
+    public List<InventoryTransaction> getTransactions() {
+        return transactions;
+    }
+
+    public void setTransactions(List<InventoryTransaction> transactions) {
+        this.transactions = transactions;
     }
 }

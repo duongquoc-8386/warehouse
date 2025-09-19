@@ -1,354 +1,389 @@
-package com.example.warehouse.Controller;
-
-import com.example.warehouse.Dto.Request.ScheduleRequest;
-import com.example.warehouse.Dto.Request.TruckRequest;
-import com.example.warehouse.Dto.Response.PendingScheduleResponse;
-import com.example.warehouse.Dto.Response.TruckResponse;
-import com.example.warehouse.Entity.*;
-import com.example.warehouse.Enum.DriverStatus;
-import com.example.warehouse.Repository.XuatKhoRepository;
-import com.example.warehouse.Service.WarehouseService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import com.example.warehouse.Entity.Schedule;
-
-import java.util.List;
-
-@RestController
-@RequestMapping("/api/warehouse")
-public class WarehouseController {
-
-    @Autowired
-    private XuatKhoRepository xuatKhoRepository;
-    private final WarehouseService warehouseService;
-
-    public WarehouseController(WarehouseService service) {
-        this.warehouseService = service;
-    }
-
-    // ================== NHẬP KHO ==================
-    @PostMapping("/nhap")
-    public NhapKho nhapKho(@RequestBody NhapKho nhapKho) {
-        return warehouseService.nhapKho(nhapKho);
-    }
-
-    @PutMapping("/nhap/{id}")
-    public NhapKho updateNhapKho(@PathVariable Long id, @RequestBody NhapKho nhapKho) {
-        return warehouseService.updateNhapKho(id, nhapKho);
-    }
-
-    @DeleteMapping("/nhap/{id}")
-    public ResponseEntity<?> deleteNhapKho(@PathVariable("id") Long id) {
-
-        warehouseService.deleteNhapKho(id);
-        return ResponseEntity.ok("Xóa nhập kho thành công");
-    }
-
-    @GetMapping("/nhap")
-    public List<NhapKho> getAllNhapKho() {
-        return warehouseService.getAllNhapKho();
-    }
-
-    // ================== XUẤT KHO ==================
-    @PostMapping("/xuat")
-    public ResponseEntity<XuatKho> xuatKho(@RequestBody XuatKho xuatKho) {
-        XuatKho saved = xuatKhoRepository.save(xuatKho);
-        return ResponseEntity.ok(saved);
-    }
+    package com.example.warehouse.Controller;
+    
+    import com.example.warehouse.Dto.Request.TripRequest;
+    import com.example.warehouse.Dto.Request.TruckRequest;
+    import com.example.warehouse.Dto.Response.PendingTripResponse;
+    import com.example.warehouse.Dto.Response.SalaryReportResponse;
+    import com.example.warehouse.Dto.Response.TruckResponse;
+    import com.example.warehouse.Entity.*;
+    import com.example.warehouse.Enum.DriverStatus;
+    import com.example.warehouse.Service.WarehouseService;
+    import lombok.RequiredArgsConstructor;
+    import org.springframework.http.HttpStatus;
+    import org.springframework.http.ResponseEntity;
+    import org.springframework.security.access.prepost.PreAuthorize;
+    import org.springframework.web.bind.annotation.*;
+            import org.springframework.web.multipart.MultipartFile;
+    
+    import java.util.List;
+    
+    @RestController
+    @RequestMapping("/api/warehouse")
+    @RequiredArgsConstructor
+    public class WarehouseController {
+    
+        private final WarehouseService warehouseService;
 
 
-    @PutMapping("/xuat/{id}")
-    public XuatKho updateXuatKho(@PathVariable Long id, @RequestBody XuatKho xuatKho) {
-        return warehouseService.updateXuatKho(id, xuatKho);
-    }
 
-    @DeleteMapping("/xuat/{id}")
-    public ResponseEntity<String> deleteXuat(@PathVariable Long id) {
-        if (xuatKhoRepository.existsById(id)) { //
-            xuatKhoRepository.deleteById(id);
-            return ResponseEntity.ok("Xóa thành công");
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("ID không tồn tại");
+        // ================= PRODUCT CRUD =================
+
+        // CREATE product
+        @PostMapping("/products")
+        public ResponseEntity<Product> createProduct(@RequestBody Product product) {
+            return ResponseEntity.ok(warehouseService.createProduct(product));
         }
-    }
 
-
-    @GetMapping("/xuat")
-    public List<XuatKho> getAllXuatKho() {
-        return warehouseService.getAllXuatKho();
-    }
-
-
-    // ================== TỒN KHO ==================
-    @GetMapping("/ton")
-    public List<TonKho> getTonKho() {
-        return warehouseService.getTonKho();
-    }
-
-    @GetMapping("/ton/search")
-    public List<TonKho> searchTonKho(@RequestParam String keyword) {
-        return warehouseService.searchTonKho(keyword);
-    }
-
-    @GetMapping("/ton/filter")
-    public List<TonKho> filterTonKho(
-            @RequestParam(required = false) String loaiHang,
-            @RequestParam(required = false) String tenHang,
-            @RequestParam(required = false) Integer minSoLuong,
-            @RequestParam(required = false) Integer maxSoLuong
-    ) {
-        return warehouseService.filterTonKho(loaiHang, tenHang, minSoLuong, maxSoLuong);
-    }
-
-    @GetMapping("/ton/summary")
-    public ResponseEntity<?> getTonKhoSummary() {
-        return ResponseEntity.ok(warehouseService.getTonKhoSummary());
-    }
-
-    // ================== QUẢN LÝ CHI PHÍ ==================
-    @PostMapping("/expenses")
-    @PreAuthorize("hasRole('NHANVIEN')")
-    public ResponseEntity<Expense> addExpense(@RequestBody Expense expense) {
-        return ResponseEntity.ok(warehouseService.addExpense(expense));
-    }
-
-    @GetMapping("/expenses")
-    @PreAuthorize("hasRole('NHANVIEN')")
-    public ResponseEntity<List<Expense>> getExpenses() {
-        return ResponseEntity.ok(warehouseService.getExpenses());
-    }
-
-    @GetMapping("/expenses/pending")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<Expense>> getPendingExpenses() {
-        return ResponseEntity.ok(warehouseService.getPendingExpenses());
-    }
-
-    @PutMapping("/expenses/{id}/approve")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Expense> approveExpense(@PathVariable Long id) {
-        return ResponseEntity.ok(warehouseService.approveExpense(id));
-    }
-
-    @PutMapping("/expenses/{id}/reject")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Expense> rejectExpense(@PathVariable Long id) {
-        return ResponseEntity.ok(warehouseService.rejectExpense(id));
-    }
-
-    // ================== QUẢN LÝ LỊCH TRÌNH ==================
-
-    // Tạo Lịch Trình
-    @PostMapping("/schedules")
-    public Schedule createSchedule(@RequestBody ScheduleRequest request) {
-        Schedule schedule = new Schedule();
-        schedule.setTitle(request.getTitle());
-        schedule.setStartLocation(request.getStartLocation());
-        schedule.setEndLocation(request.getEndLocation());
-        schedule.setDate(request.getDate());
-
-        return warehouseService.addSchedule(request);
-    }
-
-    // Lấy danh sách lịch trình chờ duyệt
-    @GetMapping("/pending/schedules")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<PendingScheduleResponse>> getPendingSchedules() {
-        List<PendingScheduleResponse> pendingSchedules  = warehouseService.getPendingSchedules();
-        System.out.println("Danh Sách Lịch Trình Chờ Duyệt: " + pendingSchedules.size());
-        return ResponseEntity.ok(warehouseService.getPendingSchedules());
-    }
-
-
-    //Lấy toàn bộ lịch trình
-    @GetMapping("/schedules")
-    public ResponseEntity<List<Schedule>> getSchedules() {
-        return ResponseEntity.ok(warehouseService.getSchedules());
-    }
-
-    //Phê duyệt
-    @PutMapping("/schedules/{id}/approve")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Schedule> approveSchedule(@PathVariable Long id) {
-        return ResponseEntity.ok(warehouseService.approveSchedule(id));
-    }
- //Từ chối
-    @PutMapping("/schedules/{id}/reject")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Schedule> rejectSchedule(@PathVariable Long id) {
-        return ResponseEntity.ok(warehouseService.rejectSchedule(id));
-    }
-
-    // ================== TÀI LIỆU ==================
-    @PostMapping("/documents/upload")
-    public ResponseEntity<String> uploadDocument(@RequestParam("file") MultipartFile file) {
-        try {
-            warehouseService.uploadDocument(file);
-            return ResponseEntity.ok("Tài liệu đã được tải lên thành công");
-        } catch (Exception e) {
-            e.printStackTrace(); // Xem lỗi thật trong console
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Upload thất bại: " + e.getMessage());
+        // READ all products
+        @GetMapping("/products")
+        public ResponseEntity<List<Product>> getAllProducts() {
+            return ResponseEntity.ok(warehouseService.getAllProducts());
         }
-    }
-        // ================== PHÊ DUYỆT LỊCH TRÌNH ==================
-        @PostMapping("/schedules/{id}/submit")
+
+
+        // READ product by ID
+        @GetMapping("/products/{id}")
+        public ResponseEntity<Product> getProductById(@PathVariable Long id) {
+            return ResponseEntity.ok(warehouseService.getProductById(id));
+        }
+
+        // UPDATE product
+        @PutMapping("/products/{id}")
+        public ResponseEntity<Product> updateProduct(@PathVariable Long id, @RequestBody Product product) {
+            return ResponseEntity.ok(warehouseService.updateProduct(id, product));
+        }
+
+        // DELETE product
+        @DeleteMapping("/products/{id}")
+        public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
+            warehouseService.deleteProduct(id);
+            return ResponseEntity.noContent().build();
+        }
+        // ================== InventoryTransaction ==============
+        // Nhập kho
+        @PostMapping("/import/{productId}")
+        public ResponseEntity<?> importStock(@PathVariable Long productId,
+                                             @RequestParam int quantity,
+                                             @RequestParam String createdBy,
+                                             @RequestParam(required = false) String referenceCode) {
+            return ResponseEntity.ok(warehouseService.importStock(productId, quantity, createdBy, referenceCode));
+        }
+    
+        // Xuất kho
+        @PostMapping("/export/{productId}")
+        public ResponseEntity<?> exportStock(@PathVariable Long productId,
+                                             @RequestParam int quantity,
+                                             @RequestParam String createdBy,
+                                             @RequestParam(required = false) String referenceCode) {
+            return ResponseEntity.ok(warehouseService.exportStock(productId, quantity, createdBy, referenceCode));
+        }
+    
+        // Điều chỉnh tồn kho (kiểm kê) - reason là optional
+        @PostMapping("/adjust/{productId}")
+        public ResponseEntity<?> adjustStock(@PathVariable Long productId,
+                                             @RequestParam int newStock,
+                                             @RequestParam String createdBy,
+                                             @RequestParam(required = false) String reason) {
+            String note = reason != null ? reason : "";
+            return ResponseEntity.ok(warehouseService.adjustStock(productId, newStock, createdBy, note));
+        }
+    
+        // Xem tồn kho tất cả sản phẩm
+        @GetMapping("/stocks")
+        public ResponseEntity<?> getAllStocks() {
+            return ResponseEntity.ok(warehouseService.getAllStocks());
+        }
+    
+        // Xem lịch sử giao dịch của 1 sản phẩm
+        @GetMapping("/transactions/{productId}")
+        public ResponseEntity<?> getTransactions(@PathVariable Long productId) {
+            return ResponseEntity.ok(warehouseService.getTransactions(productId));
+        }
+    
+        // ================== QUẢN LÝ CHI PHÍ ==================
+        @PostMapping("/expenses")
+        @PreAuthorize("hasRole('NHANVIEN')")
+        public ResponseEntity<Expense> addExpense(@RequestBody Expense expense) {
+            return ResponseEntity.ok(warehouseService.addExpense(expense));
+        }
+    
+        @GetMapping("/expenses")
+        @PreAuthorize("hasRole('NHANVIEN')")
+        public ResponseEntity<List<Expense>> getExpenses() {
+            return ResponseEntity.ok(warehouseService.getExpenses());
+        }
+    
+        @GetMapping("/expenses/pending")
         @PreAuthorize("hasRole('ADMIN')")
-        public ResponseEntity<String> submitSchedule (@PathVariable("id") Long id){
-            warehouseService.submitSchedule(id);
-            return ResponseEntity.ok("Lịch trình đã được nộp để phê duyệt");
+        public ResponseEntity<List<Expense>> getPendingExpenses() {
+            return ResponseEntity.ok(warehouseService.getPendingExpenses());
+        }
+    
+        @PutMapping("/expenses/{id}/approve")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Expense> approveExpense(@PathVariable Long id) {
+            return ResponseEntity.ok(warehouseService.approveExpense(id));
+        }
+    
+        @PutMapping("/expenses/{id}/reject")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Expense> rejectExpense(@PathVariable Long id) {
+            return ResponseEntity.ok(warehouseService.rejectExpense(id));
         }
 
+        @PutMapping("/expenses/{id}")
+        @PreAuthorize("hasRole('NHANVIEN')")
+        public ResponseEntity<Expense> updateExpense(@PathVariable Long id, @RequestBody Expense expense) {
+            return ResponseEntity.ok(warehouseService.updateExpense(id, expense));
+        }
 
-// ================== QUẢN LÝ XE TẢI ==================
-@PostMapping("/trucks")
-public ResponseEntity<TruckResponse> addTruck(@RequestBody TruckRequest request) {
-    return ResponseEntity.ok(warehouseService   .addTruck(request));
-}
+        @DeleteMapping("/expenses/{id}")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Void> deleteExpense(@PathVariable Long id) {
+            warehouseService.deleteExpense(id);
+            return ResponseEntity.noContent().build();
+        }
+        // ================== QUẢN LÝ CHUYẾN ĐI (TRIP) ==================
+        @PostMapping("/trips")
+        public ResponseEntity<Trip> createTrip(@RequestBody TripRequest request) {
+            Trip trip = warehouseService.addTrip(request);
+            return ResponseEntity.ok(trip);
+        }
+    
+        // Lấy danh sách chuyến đi chờ duyệt
+        @GetMapping("/trips/pending")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<List<PendingTripResponse>> getPendingTrips() {
+            List<PendingTripResponse> pendingTrips = warehouseService.getPendingTrips();
+            System.out.println("Danh Sách Chuyến Đi Chờ Duyệt: " + pendingTrips.size());
+            return ResponseEntity.ok(pendingTrips);
+        }
+    
+        // Lấy toàn bộ chuyến đi
+        @GetMapping("/trips")
+        public ResponseEntity<List<Trip>> getTrips() {
+            return ResponseEntity.ok(warehouseService.getAllTrips());
+        }
+    
+    
+        // Lấy chi tiết chuyến đi
+        @GetMapping("/trips/{id}")
+        public ResponseEntity<Trip> getTripById(@PathVariable Long id) {
+            return ResponseEntity.ok(warehouseService.getTripById(id));
+        }
+    
+        // Phê duyệt chuyến đi
+        @PutMapping("/trips/{id}/approve")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Trip> approveTrip(@PathVariable Long id) {
+            return ResponseEntity.ok(warehouseService.approveTrip(id));
+        }
+    
+        // Từ chối chuyến đi
+        @PutMapping("/trips/{id}/reject")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Trip> rejectTrip(@PathVariable Long id) {
+            return ResponseEntity.ok(warehouseService.rejectTrip(id));
+        }
+    
+        // Nộp chuyến đi để phê duyệt
+        @PostMapping("/trips/{id}/submit")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<String> submitTrip(@PathVariable("id") Long id) {
+            warehouseService.submitTrip(id);
+            return ResponseEntity.ok("Chuyến đi đã được nộp để phê duyệt");
+        }
 
+        @PutMapping("/trips/{id}")
+        public ResponseEntity<Trip> updateTrip(@PathVariable Long id, @RequestBody TripRequest request) {
+            return ResponseEntity.ok(warehouseService.updateTrip(id, request));
+        }
 
+        // Xóa chuyến đi
+        @DeleteMapping("/trips/{id}")
+        @PreAuthorize("hasRole('ADMIN')")
+        public ResponseEntity<Void> deleteTrip(@PathVariable Long id) {
+            warehouseService.deleteTrip(id);
+            return ResponseEntity.noContent().build();
+        }
+    
+        // ================== TÀI LIỆU ==================
+        @PostMapping("/documents/upload")
+        public ResponseEntity<String> uploadDocument(@RequestParam("file") MultipartFile file) {
+            try {
+                warehouseService.uploadDocument(file);
+                return ResponseEntity.ok("Tài liệu đã được tải lên thành công");
+            } catch (Exception e) {
+                e.printStackTrace(); // Xem lỗi thật trong console
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body("Upload thất bại: " + e.getMessage());
+            }
+        }
+        @GetMapping("/documents")
+        public ResponseEntity<List<String>> listDocuments() {
+            return ResponseEntity.ok(warehouseService.listDocuments());
+        }
 
-    @GetMapping("/trucks")
-        public ResponseEntity<List<Truck>> getAllTrucks () {
+        @GetMapping("/documents/{filename}")
+        public ResponseEntity<byte[]> downloadDocument(@PathVariable String filename) {
+            byte[] fileData = warehouseService.downloadDocument(filename);
+            return ResponseEntity.ok()
+                    .header("Content-Disposition", "attachment; filename=" + filename)
+                    .body(fileData);
+        }
+
+        @DeleteMapping("/documents/{filename}")
+        public ResponseEntity<Void> deleteDocument(@PathVariable String filename) {
+            warehouseService.deleteDocument(filename);
+            return ResponseEntity.noContent().build();
+        }
+        // ================== QUẢN LÝ XE TẢI ==================
+        @PostMapping("/trucks")
+        public ResponseEntity<TruckResponse> addTruck(@RequestBody TruckRequest request) {
+            return ResponseEntity.ok(warehouseService.addTruck(request));
+        }
+    
+        @GetMapping("/trucks")
+        public ResponseEntity<List<Truck>> getAllTrucks() {
             return ResponseEntity.ok(warehouseService.getAllTrucks());
         }
-
+    
         @GetMapping("/trucks/{id}")
-        public ResponseEntity<Truck> getTruckById (@PathVariable Long id){
+        public ResponseEntity<Truck> getTruckById(@PathVariable Long id) {
             return ResponseEntity.ok(warehouseService.getTruckById(id));
         }
-
-    @PutMapping("/trucks/{id}")
-    public TruckResponse updateTruck(@PathVariable Long id, @RequestBody TruckRequest request) {
-        return warehouseService.updateTruck(id, request);
-    }
-
-
-    @DeleteMapping("/trucks/{id}")
-        public ResponseEntity<Void> deleteTruck (@PathVariable Long id){
+    
+        @PutMapping("/trucks/{id}")
+        public TruckResponse updateTruck(@PathVariable Long id, @RequestBody TruckRequest request) {
+            return warehouseService.updateTruck(id, request);
+        }
+    
+        @DeleteMapping("/trucks/{id}")
+        public ResponseEntity<Void> deleteTruck(@PathVariable Long id) {
             warehouseService.deleteTruck(id);
             return ResponseEntity.noContent().build();
         }
-
-// API riêng chỉ đổi trạng thái xe tải
+    
+        // API riêng chỉ đổi trạng thái xe tải
         @PutMapping("/trucks/{id}/status")
-        public ResponseEntity<Truck> updateTruckStatus (@PathVariable Long id, @RequestParam String status){
+        public ResponseEntity<Truck> updateTruckStatus(@PathVariable Long id, @RequestParam String status) {
             Truck updatedTruck = warehouseService.updateTruckStatus(id, status);
             return ResponseEntity.ok(updatedTruck);
         }
-
-    // ================== DRIVER ==================
-    @PostMapping("/drivers")
-    public ResponseEntity<Driver> addDriver(@RequestBody Driver driver) {
-        return ResponseEntity.ok(warehouseService.addDriver(driver));
+    
+        // ================== DRIVER ==================
+        @PostMapping("/drivers")
+        public ResponseEntity<Driver> addDriver(@RequestBody Driver driver) {
+            return ResponseEntity.ok(warehouseService.addDriver(driver));
+        }
+    
+        @GetMapping("/drivers")
+        public ResponseEntity<List<Driver>> getAllDrivers() {
+            return ResponseEntity.ok(warehouseService.getAllDrivers());
+        }
+    
+        @GetMapping("/drivers/{id}")
+        public ResponseEntity<Driver> getDriverById(@PathVariable Long id) {
+            return ResponseEntity.ok(warehouseService.getDriverById(id));
+        }
+    
+        @PutMapping("/drivers/{id}")
+        public ResponseEntity<Driver> updateDriver(@PathVariable Long id, @RequestBody Driver driver) {
+            return ResponseEntity.ok(warehouseService.updateDriver(id, driver));
+        }
+    
+        @DeleteMapping("/drivers/{id}")
+        public ResponseEntity<Void> deleteDriver(@PathVariable Long id) {
+            warehouseService.deleteDriver(id);
+            return ResponseEntity.noContent().build();
+        }
+    
+        // đổi trạng thái Driver
+        @PutMapping("/drivers/{id}/status")
+        public ResponseEntity<Driver> updateDriverStatus(@PathVariable Long id, @RequestParam DriverStatus status) {
+            return ResponseEntity.ok(warehouseService.updateDriverStatus(id, status));
+        }
+    
+        // lấy danh sách theo trạng thái
+        @GetMapping("/drivers/status/{status}")
+        public ResponseEntity<List<Driver>> getDriversByStatus(@PathVariable DriverStatus status) {
+            return ResponseEntity.ok(warehouseService.getDriversByStatus(status));
+        }
+    
+        // ----------------- EXPENSE TYPE -----------------
+        @GetMapping("/expense-types")
+        public List<ExpenseType> getAllExpenseTypes() {
+            return warehouseService.getAllExpenseTypes();
+        }
+    
+        @PostMapping("/expense-types")
+        public ExpenseType createExpenseType(@RequestBody ExpenseType expenseType) {
+            return warehouseService.createExpenseType(expenseType);
+        }
+    
+        @PutMapping("/expense-types/{id}")
+        public ExpenseType updateExpenseType(@PathVariable Long id, @RequestBody ExpenseType expenseType) {
+            return warehouseService.updateExpenseType(id, expenseType);
+        }
+    
+        @DeleteMapping("/expense-types/{id}")
+        public void deleteExpenseType(@PathVariable Long id) {
+            warehouseService.deleteExpenseType(id);
+        }
+    
+        // ================== ROUTE ==================
+        @GetMapping("/routes")
+        public ResponseEntity<List<Route>> getAllRoutes() {
+            return ResponseEntity.ok(warehouseService.getAllRoutes());
+        }
+    
+        @GetMapping("/routes/{routeCode}")
+        public ResponseEntity<Route> getRouteByCode(@PathVariable String routeCode) {
+            return ResponseEntity.ok(warehouseService.getRouteByCode(routeCode));
+        }
+    
+        @PostMapping("/routes")
+        public ResponseEntity<Route> createRoute(@RequestBody Route route) {
+            return ResponseEntity.ok(warehouseService.createRoute(route));
+        }
+    
+        @PutMapping("/routes/{routeCode}")
+        public ResponseEntity<Route> updateRoute(@PathVariable String routeCode, @RequestBody Route route) {
+            return ResponseEntity.ok(warehouseService.updateRoute(routeCode, route));
+        }
+    
+        @DeleteMapping("/routes/{routeCode}")
+        public ResponseEntity<Void> deleteRoute(@PathVariable String routeCode) {
+            warehouseService.deleteRoute(routeCode);
+            return ResponseEntity.noContent().build();
+        }
+    
+        // ================== SALARY / TRIP SALARY ==================
+        @PostMapping("/trip-salaries")
+        public ResponseEntity<TripSalary> addTripSalary(@RequestParam Long tripId,
+                                                        @RequestParam Long driverId,
+                                                        @RequestParam Double amount) {
+            TripSalary ts = warehouseService.createTripSalary(tripId, driverId, amount);
+            return ResponseEntity.ok(ts);
+        }
+    
+        @GetMapping("/trip-salaries")
+        public ResponseEntity<List<TripSalary>> getTripSalaries() {
+            return ResponseEntity.ok(warehouseService.getTripSalaries());
+        }
+    
+        @GetMapping("/trip-salaries/{id}")
+        public ResponseEntity<TripSalary> getTripSalaryById(@PathVariable Long id) {
+            return ResponseEntity.ok(warehouseService.getTripSalaryById(id));
+        }
+    
+        // ================== SALARY CONFIG ==================
+        @PostMapping("/config")
+        public SalaryConfig addSalaryConfig(@RequestParam Long driverId,
+                                            @RequestParam String month,
+                                            @RequestParam Double baseSalary,
+                                            @RequestParam Double advance) {
+            return warehouseService.createSalaryConfig(driverId, month, baseSalary, advance);
+        }
+    
     }
-
-    @GetMapping("/drivers")
-    public ResponseEntity<List<Driver>> getAllDrivers() {
-        return ResponseEntity.ok(warehouseService.getAllDrivers());
-    }
-
-    @GetMapping("/drivers/{id}")
-    public ResponseEntity<Driver> getDriverById(@PathVariable Long id) {
-        return ResponseEntity.ok(warehouseService.getDriverById(id));
-    }
-
-    @PutMapping("/drivers/{id}")
-    public ResponseEntity<Driver> updateDriver(@PathVariable Long id, @RequestBody Driver driver) {
-        return ResponseEntity.ok(warehouseService.updateDriver(id, driver));
-    }
-
-    @DeleteMapping("/drivers/{id}")
-    public ResponseEntity<Void> deleteDriver(@PathVariable Long id) {
-        warehouseService.deleteDriver(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    // đổi trạng thái Driver
-    @PutMapping("/drivers/{id}/status")
-    public ResponseEntity<Driver> updateDriverStatus(@PathVariable Long id, @RequestParam DriverStatus status) {
-        return ResponseEntity.ok(warehouseService.updateDriverStatus(id, status));
-    }
-
-    // lấy danh sách theo trạng thái
-    @GetMapping("/drivers/status/{status}")
-    public ResponseEntity<List<Driver>> getDriversByStatus(@PathVariable DriverStatus status) {
-        return ResponseEntity.ok(warehouseService.getDriversByStatus(status));
-    }
-
-    // ----------------- EXPENSE TYPE -----------------
-
-    @GetMapping("/expense-types")
-    public List<ExpenseType> getAllExpenseTypes() {
-        return warehouseService.getAllExpenseTypes();
-    }
-
-    @PostMapping("/expense-types")
-    public ExpenseType createExpenseType(@RequestBody ExpenseType expenseType) {
-        return warehouseService.createExpenseType(expenseType);
-    }
-
-    @PutMapping("/expense-types/{id}")
-    public ExpenseType updateExpenseType(@PathVariable Long id, @RequestBody ExpenseType expenseType) {
-        return warehouseService.updateExpenseType(id, expenseType);
-    }
-
-    @DeleteMapping("/expense-types/{id}")
-    public void deleteExpenseType(@PathVariable Long id) {
-        warehouseService.deleteExpenseType(id);
-    }
-
-
-    // Get all routes
-    @GetMapping("/routes")
-    public ResponseEntity<List<Route>> getAllRoutes() {
-        return ResponseEntity.ok(warehouseService.getAllRoutes());
-    }
-
-    // Get route by code
-    @GetMapping("/routes/{routeCode}")
-    public ResponseEntity<Route> getRouteByCode(@PathVariable String routeCode) {
-        return ResponseEntity.ok(warehouseService.getRouteByCode(routeCode));
-    }
-
-    // Create new route
-    @PostMapping("/routes")
-    public ResponseEntity<Route> createRoute(@RequestBody Route route) {
-        return ResponseEntity.ok(warehouseService.createRoute(route));
-    }
-
-    // Update route
-    @PutMapping("/routes/{routeCode}")
-    public ResponseEntity<Route> updateRoute(@PathVariable String routeCode, @RequestBody Route route) {
-        return ResponseEntity.ok(warehouseService.updateRoute(routeCode, route));
-    }
-
-    // Delete route
-    @DeleteMapping("/routes/{routeCode}")
-    public ResponseEntity<Void> deleteRoute(@PathVariable String routeCode) {
-        warehouseService.deleteRoute(routeCode);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/config")
-    public SalaryConfig addSalaryConfig(@RequestParam Long driverId,
-                                        @RequestParam String month,
-                                        @RequestParam Double baseSalary,
-                                        @RequestParam Double advance) {
-        return warehouseService.createSalaryConfig(driverId, month, baseSalary, advance);
-    }
-
-    @PostMapping("/schedule-salary")
-    public ScheduleSalary addScheduleSalary(@RequestParam Long scheduleId,
-                                            @RequestParam Long driverId,
-                                            @RequestParam Double amount) {
-        return warehouseService.createScheduleSalary(scheduleId, driverId, amount);
-    }
-}
-
-
-

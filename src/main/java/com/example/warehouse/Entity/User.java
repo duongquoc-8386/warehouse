@@ -2,7 +2,9 @@ package com.example.warehouse.Entity;
 
 import com.example.warehouse.Enum.Role;
 import jakarta.persistence.*;
+import lombok.Data;
 
+@Data
 @Entity
 @Table(name = "users")
 public class User {

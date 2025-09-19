@@ -5,17 +5,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SalaryReportResponse {
+public class TripReportResponse {
     private Long driverId;
     private String driverName;
-    private double baseSalary;
-    private double tripSalary;
-    private double advancePayment;
-    private double totalSalary;
+    private long tripCount;
+    private double totalTripCost;
 }
+

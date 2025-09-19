@@ -1,81 +1,64 @@
 package com.example.warehouse.Service;
 
-import com.example.warehouse.Entity.TonKho;
-import com.example.warehouse.Repository.TonKhoRepository;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 @Service
 public class ExcelService {
 
-    private final TonKhoRepository tonKhoRepository;
+    // EXPORT chung
+    public <T> ByteArrayInputStream exportToExcel(List<T> data, String sheetName, String[] headers, Function<T, Object[]> mapper) {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet(sheetName);
 
-    public ExcelService(TonKhoRepository tonKhoRepository) {
-        this.tonKhoRepository = tonKhoRepository;
+            // Header
+            Row headerRow = sheet.createRow(0);
+            for (int col = 0; col < headers.length; col++) {
+                Cell cell = headerRow.createCell(col);
+                cell.setCellValue(headers[col]);
+            }
+
+            // Data
+            int rowIdx = 1;
+            for (T item : data) {
+                Row row = sheet.createRow(rowIdx++);
+                Object[] values = mapper.apply(item);
+                for (int col = 0; col < values.length; col++) {
+                    row.createCell(col).setCellValue(values[col] != null ? values[col].toString() : "");
+                }
+            }
+
+            workbook.write(out);
+            return new ByteArrayInputStream(out.toByteArray());
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi export Excel: " + e.getMessage());
+        }
     }
 
-    // ================== Export Excel ==================
-    public ByteArrayInputStream exportExcel() throws IOException {
-        List<TonKho> tonKhoList = tonKhoRepository.findAll();
-        Workbook workbook = new XSSFWorkbook();
-        Sheet sheet = workbook.createSheet("TonKho");
+    // IMPORT chung
+    public <T> List<T> importFromExcel(MultipartFile file, Function<Row, T> rowMapper) {
+        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
+            Sheet sheet = workbook.getSheetAt(0);
+            List<T> list = new ArrayList<>();
 
-        // Header
-        Row header = sheet.createRow(0);
-        header.createCell(0).setCellValue("Tên Hàng Hóa");
-        header.createCell(1).setCellValue("Loại Hàng");
-        header.createCell(2).setCellValue("Số Lượng");
-
-        // Data
-        int rowIdx = 1;
-        for (TonKho ton : tonKhoList) {
-            Row row = sheet.createRow(rowIdx++);
-            row.createCell(0).setCellValue(ton.getTenHangHoa());
-            row.createCell(1).setCellValue(ton.getLoaiHang());
-            row.createCell(2).setCellValue(ton.getSoLuong());
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row != null) {
+                    T item = rowMapper.apply(row);
+                    if (item != null) list.add(item);
+                }
+            }
+            return list;
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi import Excel: " + e.getMessage());
         }
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        workbook.write(out);
-        workbook.close();
-        return new ByteArrayInputStream(out.toByteArray());
-    }
-
-    // ================== Import Excel ==================
-    public void importExcel(MultipartFile file) throws IOException {
-        Workbook workbook = new XSSFWorkbook(file.getInputStream());
-        Sheet sheet = workbook.getSheetAt(0);
-
-        for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-            Row row = sheet.getRow(i);
-            if (row == null || row.getCell(0) == null || row.getCell(1) == null || row.getCell(2) == null)
-                continue;
-
-            String ten = row.getCell(0).getStringCellValue();
-            String loai = row.getCell(1).getStringCellValue();
-            int soLuong = (int) row.getCell(2).getNumericCellValue();
-
-            TonKho ton = tonKhoRepository.findByTenHangHoaContainingIgnoreCase(ten)
-                    .stream()
-                    .findFirst()
-                    .orElse(TonKho.builder()
-                            .tenHangHoa(ten)
-                            .loaiHang(loai)
-                            .soLuong(0)
-                            .build());
-
-            ton.setSoLuong(ton.getSoLuong() + soLuong); // cộng dồn
-            tonKhoRepository.save(ton);
-        }
-        workbook.close();
     }
 }

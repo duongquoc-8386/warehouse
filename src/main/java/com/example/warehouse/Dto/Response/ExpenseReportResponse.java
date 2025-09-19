@@ -10,10 +10,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class ExpenseReportResponse {
-    private Long truckId;
-    private String truckName;
-    private Double totalAmount;
-    private LocalDateTime fromDate;
-    private LocalDateTime toDate;
+public class ExpenseReportResponse  {
+    private Long expenseTypeId;
+    private String expenseTypeName;
+    private double totalAmount;
+    private long count;
 }

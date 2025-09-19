@@ -13,6 +13,6 @@ public interface ReportService {
     VehicleCostSummaryResponse getVehicleCostAll();
 
     // Báo cáo lịch trình
-    List<ScheduleDetailResponse> getScheduleDetailsAllByTruck(Long truckId);
+    List<TripDetailResponse> getScheduleDetailsAllByTruck(Long truckId);
     AllScheduleDetailResponse getScheduleDetailsAll();
 }

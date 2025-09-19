@@ -9,16 +9,16 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class VehicleCostDetail {
-    private Long scheduleId;
+    private Long TripId;
     private double cost;       // Chi phí chuyến đi
     private String description; // Mô tả chuyến đi
 
     public Long getScheduleId() {
-        return scheduleId;
+        return TripId;
     }
 
     public void setScheduleId(Long scheduleId) {
-        this.scheduleId = scheduleId;
+        this.TripId = getTripId();
     }
 
     public double getCost() {

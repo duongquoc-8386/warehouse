@@ -1,10 +1,13 @@
 package com.example.warehouse.Entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
+import java.util.List;
+
 @Entity
-@Table(name = "expense_type")
+@Table(name = "expense_types")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -14,7 +17,11 @@ public class ExpenseType {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @ManyToOne
+    @JoinColumn(name = "expense_type_id")
+    private ExpenseType type;
 
+    @NotBlank(message = "Name is required")
     @Column(nullable = false, unique = true)
     private String name;
 }
