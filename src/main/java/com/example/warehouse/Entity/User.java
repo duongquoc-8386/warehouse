@@ -18,7 +18,8 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Role role; // ADMIN hoặc NHANVIEN
 
-    // getters & setters
+
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
