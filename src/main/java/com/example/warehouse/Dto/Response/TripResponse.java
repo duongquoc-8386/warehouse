@@ -1,14 +1,20 @@
 package com.example.warehouse.Dto.Response;
 
-import com.example.warehouse.Entity.Driver;
-import com.example.warehouse.Entity.Truck;
 import com.example.warehouse.Entity.Trip;
+import jakarta.persistence.Entity;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 @Data
 public class TripResponse {
     private Long id;
@@ -17,8 +23,8 @@ public class TripResponse {
     private String description;
     private String startLocation;
     private String endLocation;
-    private Driver driver;
-    private Truck truck;
+    private String driverName;
+    private String truckName;
     private BigDecimal scheduleSalary;
     private String status;
     private LocalDateTime createdAt;
@@ -27,23 +33,22 @@ public class TripResponse {
     private String proofDocumentPath;
 
     public static TripResponse fromEntity(Trip trip) {
+        if (trip == null) return null;
+
         TripResponse res = new TripResponse();
         res.setId(trip.getId());
         res.setTitle(trip.getTitle());
-
-        // Dùng startTime làm ngày
         res.setDate(trip.getStartTime() != null ? trip.getStartTime().toLocalDate() : null);
-
         res.setDescription(trip.getDescription() != null ? trip.getDescription() : "");
-
-        // start/end location hiện không có trong Trip -> tạm set bằng Route
         res.setStartLocation(trip.getRoute() != null ? trip.getRoute().getStartLocation() : "Chưa cập nhật");
         res.setEndLocation(trip.getRoute() != null ? trip.getRoute().getEndLocation() : "Chưa cập nhật");
 
-        res.setDriver(trip.getDriver());
-        res.setTruck(trip.getTruck());
+        // Chỉ lấy các trường kiểu String, tránh gửi nguyên entity Hibernate
+        res.setDriverName(trip.getDriver() != null ? trip.getDriver().getFullName() : "Chưa cập nhật");
+        res.setTruckName(trip.getTruck() != null ? trip.getTruck().getLicensePlate() : "Chưa cập nhật");
 
-        // Trip chưa có lương riêng -> gán mặc định 0
+
+        // Lương mặc định
         res.setScheduleSalary(BigDecimal.ZERO);
 
         res.setStatus(trip.getStatus() != null ? trip.getStatus().toString() : "Chưa cập nhật");
@@ -51,10 +56,8 @@ public class TripResponse {
         res.setCost(trip.getCost());
         res.setCostFormatted(trip.getCost() != null ? String.format("%,.0f VND", trip.getCost()) : "0 VND");
         res.setProofDocumentPath(trip.getProofDocumentPath() != null ? trip.getProofDocumentPath() : "");
+
         return res;
     }
-
-    public String getProofDocumentPath() {
-        return proofDocumentPath != null ? proofDocumentPath : "Chưa có tài liệu";
-    }
 }
+

@@ -1,6 +1,7 @@
 package com.example.warehouse.Entity;
 
 import com.example.warehouse.Enum.TripStatus;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -48,10 +49,12 @@ public class Trip {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "driver_id", nullable = false)
+    @JsonIgnoreProperties
     private Driver driver;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "truck_id", nullable = false)
+    @JsonIgnoreProperties
     private Truck truck;
 
     @ManyToOne(fetch = FetchType.LAZY)

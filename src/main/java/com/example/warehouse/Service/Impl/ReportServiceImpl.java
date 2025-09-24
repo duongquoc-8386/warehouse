@@ -52,9 +52,9 @@
 
             List<DriverSalaryDetail> details = trips.stream().map(t -> {
                 DriverSalaryDetail detail = new DriverSalaryDetail();
-                detail.setTripId(t.getId());
-                detail.setRouteSalary(t.getCost() != null ? t.getCost() : 0.0);
-                detail.setCost(0.0); // placeholder nếu có thêm chi phí khác
+                detail.setDriverId(t.getId());
+                detail.setTripSalary(t.getCost() != null ? t.getCost() : 0.0);
+                detail.setBaseSalary(0.0); // placeholder nếu có thêm chi phí khác
                 detail.setDescription(t.getDescription());
                 return detail;
             }).collect(Collectors.toList());
@@ -97,7 +97,7 @@
                 VehicleCostDetail detail = new VehicleCostDetail();
                 detail.setTripId(null);
                 detail.setCost(e.getAmount() != null ? e.getAmount() : 0.0);
-                detail.setDescription(e.getType() + ": " + e.getDescription());
+                detail.setDescription(e.getExpenseType() + ": " + e.getDescription());
                 totalCost += detail.getCost();
                 details.add(detail);
             }

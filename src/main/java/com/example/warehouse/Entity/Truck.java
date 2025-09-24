@@ -1,9 +1,10 @@
 package com.example.warehouse.Entity;
 
 import com.example.warehouse.Enum.TruckStatus;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
-
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 @Entity
 @Getter
 @Setter
@@ -20,72 +21,25 @@ public class Truck {
 
     private String type; // "TRACTOR", "TRUCK"
 
-    @OneToOne
+
+
+
+    @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "mooc_id", nullable = true)
+    @JsonIgnoreProperties
     private Mooc mooc;
 
-    private Double capacity;
+    private double capacity;
 
     @Enumerated(EnumType.STRING)
     private TruckStatus status;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "driver_id")
+    @JsonIgnoreProperties
     private Driver driver;
 
-    public Long getId() {
-        return id;
-    }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
 
-    public String getLicensePlate() {
-        return licensePlate;
-    }
 
-    public void setLicensePlate(String licensePlate) {
-        this.licensePlate = licensePlate;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
-    public Mooc getMooc() {
-        return mooc;
-    }
-
-    public void setMooc(Mooc mooc) {
-        this.mooc = mooc;
-    }
-
-    public Double getCapacity() {
-        return capacity;
-    }
-
-    public void setCapacity(Double capacity) {
-        this.capacity = capacity;
-    }
-
-    public TruckStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(TruckStatus status) {
-        this.status = status;
-    }
-
-    public Driver getDriver() {
-        return driver;
-    }
-
-    public void setDriver(Driver driver) {
-        this.driver = driver;
-    }
 }

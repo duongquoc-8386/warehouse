@@ -17,9 +17,7 @@ public class ExpenseType {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @ManyToOne
-    @JoinColumn(name = "expense_type_id")
-    private ExpenseType type;
+
 
     @NotBlank(message = "Name is required")
     @Column(nullable = false, unique = true)

@@ -3,8 +3,10 @@ package com.example.warehouse.Service;
 import com.example.warehouse.Dto.Request.TripRequest;
 import com.example.warehouse.Dto.Request.TruckRequest;
 import com.example.warehouse.Dto.Response.PendingTripResponse;
+import com.example.warehouse.Dto.Response.TripResponse;
 import com.example.warehouse.Dto.Response.TruckResponse;
 import com.example.warehouse.Entity.*;
+import com.example.warehouse.Entity.ExpenseType;
 import com.example.warehouse.Enum.*;
 import com.example.warehouse.Repository.*;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,7 @@ public class WarehouseService {
     private final TruckRepository truckRepository;
     private final ExpenseTypeRepository expenseTypeRepository;
     private final RouteRepository routeRepository;
+    private final ScheduleRepository scheduleRepository;
 
     // ---------------- utils ----------------
     private String formatMoney(Double amount) {
@@ -147,10 +150,10 @@ public class WarehouseService {
     // EXPENSE
     // ======================================================
     public Expense addExpense(Expense expense) {
-        if (expense.getType() != null && expense.getType().getId() != null) {
-            ExpenseType et = expenseTypeRepository.findById(expense.getType().getId())
+        if (expense.getExpenseType() != null && expense.getExpenseType().getId() != null) {
+            ExpenseType et = expenseTypeRepository.findById(expense.getExpenseType().getId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy loại chi phí"));
-            expense.setType(et);
+            expense.setExpenseType(et);
         }
 
         if (expense.getCreatedAt() == null) expense.setCreatedAt(LocalDateTime.now());
@@ -205,10 +208,10 @@ public class WarehouseService {
         Expense existing = expenseRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy chi phí"));
 
-        if (expense.getType() != null && expense.getType().getId() != null) {
-            ExpenseType et = expenseTypeRepository.findById(expense.getType().getId())
+        if (expense.getExpenseType() != null && expense.getExpenseType().getId() != null) {
+            ExpenseType et = expenseTypeRepository.findById(expense.getExpenseType().getId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy loại chi phí"));
-            existing.setType(et);
+            existing.setExpenseType(et);
         }
 
         existing.setDescription(expense.getDescription());
@@ -297,7 +300,6 @@ public class WarehouseService {
         return TruckResponse.builder()
                 .id(saved.getId())
                 .licensePlate(saved.getLicensePlate())
-                .capacity(saved.getCapacity())
                 .status(saved.getStatus().name())
                 .build();
     }
@@ -327,7 +329,6 @@ public class WarehouseService {
         return TruckResponse.builder()
                 .id(saved.getId())
                 .licensePlate(saved.getLicensePlate())
-                .capacity(saved.getCapacity())
                 .status(saved.getStatus().name())
                 .build();
     }
@@ -398,6 +399,64 @@ public class WarehouseService {
         return driverRepository.findByStatus(status);
     }
 
+
+    //schuldes
+    public List<Schedule> getAllSchedules() {
+        return scheduleRepository.findAll();
+    }
+
+    // Phê duyệt Schedule
+    public Schedule approveSchedule(Long id) {
+        Schedule schedule = scheduleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Schedule not found"));
+        schedule.setStatus(ScheduleStatus.APPROVED);
+        return scheduleRepository.save(schedule);
+    }
+
+    // Từ chối Schedule
+    public Schedule rejectSchedule(Long id) {
+        Schedule schedule = scheduleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Schedule not found"));
+        schedule.setStatus(ScheduleStatus.REJECTED);
+        return scheduleRepository.save(schedule);
+    }
+    public Schedule getScheduleById(Long id) {
+        return scheduleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Schedule not found with id " + id));
+    }
+
+    public Schedule createSchedule(Schedule schedule) {
+        return scheduleRepository.save(schedule);
+    }
+
+    public Schedule updateSchedule(Long id, Schedule schedule) {
+        Schedule existing = getScheduleById(id);
+        existing.setTitle(schedule.getTitle());
+        existing.setDate(schedule.getDate());
+        existing.setStartLocation(schedule.getStartLocation());
+        existing.setEndLocation(schedule.getEndLocation());
+        existing.setCost(schedule.getCost());
+        existing.setStatus(schedule.getStatus());
+        existing.setDriver(schedule.getDriver());
+        existing.setTruck(schedule.getTruck());
+        return scheduleRepository.save(schedule);
+    }
+
+
+    public void deleteSchedule(Long id) {
+        scheduleRepository.deleteById(id);
+    }
+
+    public Schedule submitSchedule(Long id) {
+        Schedule schedule = scheduleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy Schedule với id = " + id));
+
+        // Ví dụ: cập nhật trạng thái thành "SUBMITTED"
+        schedule.setStatus(ScheduleStatus.SUBMITTED);
+        return scheduleRepository.save(schedule);
+    }
+
+
     // ======================================================
     // ROUTE
     // ======================================================
@@ -463,8 +522,11 @@ public class WarehouseService {
     }
 
 
-    public List<Trip> getAllTrips() {
-        return tripRepository.findAll();
+    public List<TripResponse> getAllTrips() {
+        List<Trip> trips = tripRepository.findAll(); // entity
+        return trips.stream()
+                .map(TripResponse::fromEntity) // chuyển sang DTO
+                .collect(Collectors.toList());
     }
 
 

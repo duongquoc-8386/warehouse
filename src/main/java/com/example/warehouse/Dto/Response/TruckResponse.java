@@ -1,19 +1,29 @@
 package com.example.warehouse.Dto.Response;
 
+import com.example.warehouse.Entity.Truck;
+import jakarta.persistence.Entity;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import lombok.*;
 
-@Getter
-@Setter
-@NoArgsConstructor
 @AllArgsConstructor
+@NoArgsConstructor
+@Data
 @Builder
 public class TruckResponse {
     private Long id;
     private String licensePlate;
-    private double capacity;
     private String status;
-    private Long driverId;
-    private String driverFullName;
 
+    public static TruckResponse fromEntity(Truck truck) {
+        if (truck == null) return null;
+        return TruckResponse.builder()
+                .id(truck.getId())
+                .licensePlate(truck.getLicensePlate() != null ? truck.getLicensePlate() : "Chưa cập nhật")
+                .status(truck.getStatus() != null ? truck.getStatus().toString() : "Chưa cập nhật")
+                .build();
+    }
 }
+

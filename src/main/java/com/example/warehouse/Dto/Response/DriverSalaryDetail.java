@@ -6,15 +6,25 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@NoArgsConstructor
 @AllArgsConstructor
-@Builder
 
+@Builder
 public class DriverSalaryDetail {
-    private Long TripId;
-    private double routeSalary;   // Lương lịch trình
-    private double cost;          // Chi phí liên quan
-    private String description;   // Mô tả chuyến đi
+    private Long driverId;
+    private String description;
+
+    // lương theo chuyến (trip cost)
+    private double tripSalary;
+
+    // lương cơ bản (cộng thêm nếu có)
+    private double baseSalary;
+
+    // giữ lại routeSalary để tương thích với chỗ .mapToDouble(DriverSalaryDetail::getRouteSalary)
+    private double routeSalary;
+    private Double advancePayment;  // thêm field này
+    private Double totalSalary;
+    public DriverSalaryDetail() {}
+
 
 
 }

@@ -35,6 +35,8 @@ public class SecurityConfig {
 
                                 // Cho phép swagger
                                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        //cho phép xem lịch sử của sản phầm
+                                .requestMatchers("/transactions/**").hasRole("ADMIN")
                                 // Cho phép register, login, excel
                                 .requestMatchers("/api/warehouse/register", "/api/warehouse/login", "/api/warehouse/excel/**").permitAll()
                                 // Sản phẩm: chỉ nhân viên + admin
@@ -42,6 +44,8 @@ public class SecurityConfig {
                                 // Báo cáo: cho phép truy cập tự do
                                 .requestMatchers("/api/reports/**").permitAll()
                                 .requestMatchers("/api/warehouse/**").permitAll()
+
+                                .requestMatchers("/api/warehouse/excel/**").hasAnyRole("ADMIN")
                                 // Admin
                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                 // Nhân viên

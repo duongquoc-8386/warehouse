@@ -1,204 +1,198 @@
     package com.example.warehouse.Controller;
 
-    import com.example.warehouse.Entity.*;
-    import com.example.warehouse.Enum.DriverStatus;
+    import com.example.warehouse.Entity.InventoryTransaction;
+    import com.example.warehouse.Entity.Product;
     import com.example.warehouse.Enum.Role;
     import com.example.warehouse.Enum.TransactionType;
-    import com.example.warehouse.Enum.TruckStatus;
-    import com.example.warehouse.Repository.*;
+    import com.example.warehouse.Entity.User;
+    import com.example.warehouse.Repository.ProductRepository;
+    import com.example.warehouse.Repository.TransactionRepository;
+    import com.example.warehouse.Repository.UserRepository;
     import com.example.warehouse.Service.ExcelService;
-    import lombok.RequiredArgsConstructor;
+    import org.apache.poi.ss.usermodel.Row;
+    import org.springframework.beans.factory.annotation.Autowired;
     import org.springframework.http.HttpHeaders;
+    import org.springframework.http.MediaType;
     import org.springframework.http.ResponseEntity;
     import org.springframework.web.bind.annotation.*;
     import org.springframework.web.multipart.MultipartFile;
 
     import java.io.ByteArrayInputStream;
+    import java.time.LocalDate;
+    import java.time.LocalDateTime;
+    import java.time.format.DateTimeFormatter;
     import java.util.List;
+    import java.util.Objects;
+    import java.util.Optional;
 
     @RestController
-    @RequestMapping("/excel")
-    @RequiredArgsConstructor
+    @RequestMapping("/api/warehouse/excel")
     public class ExcelController {
 
-        private final ExcelService excelService;
-        private final DriverRepository driverRepository;
-        private final TruckRepository truckRepository;
-        private final InventoryTransactionRepository inventoryTransactionRepository;
-        private final ProductRepository productRepository;
-        private final UserRepository userRepository;
+        @Autowired
+        private ExcelService excelService;
 
-        // EXPORT
-        @GetMapping("/export")
-        public ResponseEntity<byte[]> exportEntity(@RequestParam String entity) throws Exception {
-            ByteArrayInputStream in;
-            String filename;
+        @Autowired
+        private UserRepository userRepository;
 
-            switch (entity.toLowerCase()) {
-                case "driver" -> {
-                    List<Driver> list = driverRepository.findAll();
-                    String[] headers = {"ID", "Name", "Status"};
-                    in = excelService.exportToExcel(list, "Drivers", headers,
-                            d -> new Object[]{d.getId(), d.getFullName(), d.getStatus()});
-                    filename = "drivers.xlsx";
-                }
-                case "truck" -> {
-                    List<Truck> list = truckRepository.findAll();
-                    String[] headers = {"ID", "LicensePlate", "Driver", "Status"};
-                    in = excelService.exportToExcel(list, "Trucks", headers,
-                            t -> new Object[]{t.getId(), t.getLicensePlate(),
-                                    t.getDriver() != null ? t.getDriver().getFullName() : "N/A",
-                                    t.getStatus()});
-                    filename = "trucks.xlsx";
-                }
-                case "inventorytransaction" -> {
-                    List<InventoryTransaction> list = inventoryTransactionRepository.findAll();
-                    String[] headers = {"ID", "Product", "Quantity", "Type", "Date"};
-                    in = excelService.exportToExcel(list, "InventoryTransaction", headers,
-                            it -> new Object[]{it.getId(),
-                                    it.getProduct() != null ? it.getProduct().getName() : "N/A",
-                                    it.getQuantity(), it.getType(), it.getCreatedAt()});
-                    filename = "inventory_transactions.xlsx";
-                }
-                case "product" -> {
-                    List<Product> list = productRepository.findAll();
-                    String[] headers = {"ID", "Name", "Category"};
-                    in = excelService.exportToExcel(list, "Products", headers,
-                            p -> new Object[]{p.getId(), p.getName(), p.getCategory()});
-                    filename = "products.xlsx";
-                }
-                case "user" -> {
-                    List<User> list = userRepository.findAll();
-                    String[] headers = {"ID", "Username", "Role"};
-                    in = excelService.exportToExcel(list, "Users", headers,
-                            u -> new Object[]{u.getId(), u.getUsername(), u.getRole()});
-                    filename = "users.xlsx";
-                }
-                default -> throw new RuntimeException("Entity không hỗ trợ export: " + entity);
-            }
+        @Autowired
+        private ProductRepository productRepository;
 
-            HttpHeaders httpHeaders = new HttpHeaders();
-            httpHeaders.add("Content-Disposition", "attachment; filename=" + filename);
-            return ResponseEntity.ok().headers(httpHeaders).body(in.readAllBytes());
-        }
+        @Autowired
+        private TransactionRepository transactionRepository;
 
-        // IMPORT
-        @PostMapping("/import")
-        public ResponseEntity<String> importEntity(@RequestParam String entity, @RequestParam("file") MultipartFile file) {
-            switch (entity.toLowerCase()) {
-                case "driver" -> {
-                    List<Driver> list = excelService.importFromExcel(file, row -> {
-                        try {
-                            String code = row.getCell(0).getStringCellValue();
-                            String name = row.getCell(1).getStringCellValue();
-                            String status = row.getCell(2).getStringCellValue();
+        // ========================= IMPORT =========================
+        @PostMapping("/import/users")
+        public ResponseEntity<String> importUsers(@RequestParam("file") MultipartFile file) {
+            try {
+                List<User> users = excelService.importFromExcel(file, (Row row) -> {
+                    User u = new User();
+                    u.setUsername(row.getCell(0).getStringCellValue());
+                    u.setPassword(row.getCell(1).getStringCellValue());
+                    u.setRole(Role.valueOf(row.getCell(3).getStringCellValue().toUpperCase()));
 
-                            Driver driver = new Driver();
-                            driver.setEmployeeCode(code);
-                            driver.setFullName(name);
-                            driver.setStatus(DriverStatus.valueOf(status));
-
-                            return driver;
-                        } catch (Exception e) {
-                            return null;
-                        }
-                    });
-                    driverRepository.saveAll(list);
-                    return ResponseEntity.ok("Đã import " + list.size() + " driver");
-                }
-                case "truck" -> {
-                    List<Truck> list = excelService.importFromExcel(file, row -> {
-                        try {
-                            String plate = row.getCell(1).getStringCellValue();
-                            String driverCode = row.getCell(2).getStringCellValue();
-                            String status = row.getCell(3).getStringCellValue();
-
-                            Driver driver = driverRepository.findByEmployeeCode(driverCode).orElseGet(() -> {
-                                Driver d = new Driver();
-                                d.setEmployeeCode(driverCode);
-                                d.setFullName("Unknown");
-                                d.setStatus(DriverStatus.AVAILABLE);
-                                return driverRepository.save(d);
-                            });
-
-                            Truck t = new Truck();
-                            t.setLicensePlate(plate);
-                            t.setDriver(driver);
-                            t.setStatus(TruckStatus.valueOf(status.toUpperCase()));
-                            return t;
-                        } catch (Exception e) {
-                            return null;
-                        }
-                    });
-                    truckRepository.saveAll(list);
-                    return ResponseEntity.ok("Đã import " + list.size() + " truck");
-                }
-                case "inventorytransaction" -> {
-                    List<InventoryTransaction> list = excelService.importFromExcel(file, row -> {
-                        try {
-                            String productCode = row.getCell(1).getStringCellValue();
-                            int qty = (int) row.getCell(2).getNumericCellValue();
-                            String type = row.getCell(3).getStringCellValue();
-
-                            Product product = productRepository.findByCode(productCode).orElse(null);
-
-                            InventoryTransaction it = new InventoryTransaction();
-                            it.setProduct(product);
-                            it.setQuantity(qty);
-                            it.setType(TransactionType.valueOf(type.toUpperCase()));
-                            return it;
-                        } catch (Exception e) {
-                            return null;
-                        }
-                    });
-                    inventoryTransactionRepository.saveAll(list);
-                    return ResponseEntity.ok("Đã import " + list.size() + " giao dịch kho");
-                }
-                case "product" -> {
-                    List<Product> list = excelService.importFromExcel(file, row -> {
-                        try {
-                            String code = row.getCell(1).getStringCellValue();
-                            String name = row.getCell(2).getStringCellValue();
-                            String category = row.getCell(3).getStringCellValue();
-                            int stock = (int) row.getCell(4).getNumericCellValue();
-
-                            Product p = new Product();
-                            p.setCode(code);
-                            p.setName(name);
-                            p.setCategory(category);
-                            p.setCurrentStock(stock);
-
-                            return p;
-                        } catch (Exception e) {
-                            return null;
-                        }
-                    });
-                    productRepository.saveAll(list);
-                    return ResponseEntity.ok("Đã import " + list.size() + " product");
-                }
-                case "user" -> {
-                    List<User> list = excelService.importFromExcel(file, row -> {
-                        try {
-                            String username = row.getCell(1).getStringCellValue();
-                            String password = row.getCell(2).getStringCellValue();
-                            String roleStr = row.getCell(3).getStringCellValue();
-
-                            User u = new User();
-                            u.setUsername(username);
-                            u.setPassword(password);
-                            u.setRole(Role.valueOf(roleStr.toUpperCase()));
-
-                            return u;
-                        } catch (Exception e) {
-                            return null;
-                        }
-                    });
-                    userRepository.saveAll(list);
-                    return ResponseEntity.ok("Đã import " + list.size() + " user");
-                }
-                default -> {
-                    return ResponseEntity.badRequest().body("Entity không hỗ trợ import: " + entity);
-                }
+                    return u;
+                });
+                userRepository.saveAll(users);
+                return ResponseEntity.ok("Imported " + users.size() + " users successfully.");
+            } catch (Exception e) {
+                return ResponseEntity.status(500).body("Error importing users: " + e.getMessage());
             }
         }
+
+        @PostMapping("/import/transactions")
+        public ResponseEntity<String> importTransactions(@RequestParam("file") MultipartFile file) {
+            try {
+                List<InventoryTransaction> list = excelService.importFromExcel(file, row -> {
+                    InventoryTransaction tr = new InventoryTransaction();
+
+                    // Cột chuẩn: 0-ThoiGian, 1-NguoiNhap, 2-GhiChu, 3-Quantity, 4-ProductCode, 5-Type
+                    String productCode = getCellValueAsString(row.getCell(4));
+                    Product product = productRepository.findByCode(productCode)
+                            .orElseThrow(() -> new RuntimeException("Product not found with code: " + productCode));
+                    tr.setProduct(product);
+
+                    // Quantity
+                    String quantityStr = getCellValueAsString(row.getCell(3));
+                    tr.setQuantity(Integer.parseInt(quantityStr));
+
+                    // Type (IMPORT/EXPORT)
+                    String typeStr = getCellValueAsString(row.getCell(5));
+                    tr.setType(TransactionType.valueOf(typeStr.toUpperCase()));
+
+                    // CreatedAt
+                    String createdAtStr = getCellValueAsString(row.getCell(0));
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+                    tr.setCreatedAt(LocalDateTime.parse(createdAtStr, formatter));
+
+                    return tr;
+                });
+
+                transactionRepository.saveAll(list);
+                return ResponseEntity.ok("Imported " + list.size() + " transactions successfully.");
+            } catch (Exception e) {
+                return ResponseEntity.status(500).body("Error importing transactions: " + e.getMessage());
+            }
+        }
+
+
+
+
+        // ========================= EXPORT =========================
+            @GetMapping("/export/users")
+            public ResponseEntity<byte[]> exportUsers() {
+                try {
+                    List<User> users = userRepository.findAll();
+
+                    String[] headers = {"ID", "Username", "Password", "Role"};
+
+                    ByteArrayInputStream in = excelService.exportToExcel(
+                            users,
+                            "Users",     // sheetName
+                            headers,     // headers
+                            (User u) -> new Object[]{
+                                    u.getId(),
+                                    u.getUsername(),
+                                    u.getPassword(),
+                                    u.getRole().name()
+                            }
+                    );
+
+                    HttpHeaders headersHttp = new HttpHeaders();
+                    headersHttp.add("Content-Disposition", "attachment; filename=users.xlsx");
+
+                    return ResponseEntity.ok()
+                            .headers(headersHttp)
+                            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                            .body(in.readAllBytes());
+                } catch (Exception e) {
+                    return ResponseEntity.status(500).body(null);
+                }
+            }
+
+
+        @GetMapping("/export/transactions")
+        public ResponseEntity<byte[]> exportTransactions() {
+            try {
+                List<InventoryTransaction> transactions = transactionRepository.findAll();
+
+                String[] headers = {"ID", "ProductCode", "Quantity", "Type", "CreatedAt"};
+
+                ByteArrayInputStream in = excelService.exportToExcel(
+                        transactions,
+                        "Transactions",   // sheetName
+                        headers,          // header row
+                        (InventoryTransaction tr) -> new Object[]{
+                                tr.getId(),
+                                tr.getProduct() != null ? tr.getProduct().getCode() : "",
+                                tr.getQuantity(),
+                                tr.getType() != null ? tr.getType().name() : "",
+                                tr.getCreatedAt() != null ? tr.getCreatedAt().toString() : ""
+                        }
+                );
+
+                HttpHeaders headersHttp = new HttpHeaders();
+                headersHttp.add("Content-Disposition", "attachment; filename=transactions.xlsx");
+
+                return ResponseEntity.ok()
+                        .headers(headersHttp)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(in.readAllBytes());
+
+            } catch (Exception e) {
+                return ResponseEntity.status(500)
+                        .body(("Error exporting transactions: " + e.getMessage()).getBytes());
+            }
+        }
+        // Helper để đọc giá trị ô Excel an toàn
+        private String getCellValueAsString(org.apache.poi.ss.usermodel.Cell cell) {
+            if (cell == null) return "";
+            switch (cell.getCellType()) {
+                case STRING:
+                    return cell.getStringCellValue().trim();
+                case NUMERIC:
+                    if (org.apache.poi.ss.usermodel.DateUtil.isCellDateFormatted(cell)) {
+                        return cell.getLocalDateTimeCellValue().toString();
+                    } else {
+                        double d = cell.getNumericCellValue();
+                        if (d == Math.floor(d)) {
+                            return String.valueOf((long) d); // số nguyên
+                        } else {
+                            return String.valueOf(d);        // số thập phân
+                        }
+                    }
+                case BOOLEAN:
+                    return String.valueOf(cell.getBooleanCellValue());
+                case FORMULA:
+                    try {
+                        return cell.getStringCellValue();
+                    } catch (IllegalStateException e) {
+                        return String.valueOf(cell.getNumericCellValue());
+                    }
+                case BLANK:
+                default:
+                    return "";
+            }
+        }
+
     }

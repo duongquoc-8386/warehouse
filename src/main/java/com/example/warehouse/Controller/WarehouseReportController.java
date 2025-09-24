@@ -53,6 +53,7 @@ public class WarehouseReportController {
         return ResponseEntity.ok(reportService.getSalaryReport(month.toUpperCase()));
     }
 
+
     // =================== Xuất Excel lương ===================
     @GetMapping("/export/salary")
     public void exportSalaryReport(HttpServletResponse response,

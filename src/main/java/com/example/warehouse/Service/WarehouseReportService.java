@@ -24,7 +24,7 @@
         private final DriverRepository driverRepository;
         private final TripSalaryRepository tripSalaryRepository;
         private final SalaryConfigRepository salaryConfigRepository;
-
+        private final AdvancePaymentRepository advancePaymentRepository;
 
         // ================= TỒN KHO =================
         public List<StockReportResponse> getStockReport() {
@@ -58,11 +58,11 @@
             List<ExpenseReportResponse> report = new ArrayList<>();
             for (ExpenseType type : types) {
                 double total = expenses.stream()
-                        .filter(e -> e.getType() != null && e.getType().getId().equals(type.getId()))
+                        .filter(e -> e.getExpenseType() != null && e.getExpenseType().getId().equals(type.getId()))
                         .mapToDouble(e -> Optional.ofNullable(e.getAmount()).orElse(0.0))
                         .sum();
                 long count = expenses.stream()
-                        .filter(e -> e.getType() != null && e.getType().getId().equals(type.getId()))
+                        .filter(e -> e.getExpenseType() != null && e.getExpenseType().getId().equals(type.getId()))
                         .count();
 
                 report.add(ExpenseReportResponse.builder()
@@ -101,51 +101,48 @@
 
         // ================= LƯƠNG =================
         public List<SalaryReportResponse> getSalaryReport(String month) {
-
-            YearMonth yearMonth = (month == null || month.isEmpty())
-                    ? YearMonth.now()
-                    : YearMonth.parse(month, DateTimeFormatter.ofPattern("yyyy-MM"));
-
-
-            String monthStr = yearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"));
-
             List<Driver> drivers = driverRepository.findAll();
-            List<SalaryReportResponse> report = new ArrayList<>();
+            List<SalaryReportResponse> results = new ArrayList<>();
 
             for (Driver d : drivers) {
-                // Base salary
-                BigDecimal baseSalary = salaryConfigRepository
-                        .findByDriverIdAndMonth(d.getId(), monthStr)
-                        .map(SalaryConfig::getBaseSalary)
-                        .orElse(BigDecimal.ZERO);
+                SalaryReportResponse dto = new SalaryReportResponse();
+                dto.setDriverId(d.getId());
+                dto.setDriverName(d.getFullName());
 
-                // Advance
-                BigDecimal advance = salaryConfigRepository
-                        .findByDriverIdAndMonth(d.getId(), monthStr)
-                        .map(SalaryConfig::getAdvance)
-                        .orElse(BigDecimal.ZERO);
+                // Lấy lương cơ bản và phụ cấp từ entity Driver
+                Double baseSalary = d.getBaseSalary() != null ? d.getBaseSalary() : 0.0;
+                Double allowance = d.getAllowance() != null ? d.getAllowance() : 0.0;
 
-                // Trip salary theo tháng
-                BigDecimal tripSalary = tripSalaryRepository.findAll().stream()
-                        .filter(ts -> ts.getDriver() != null
-                                && ts.getDriver().getId().equals(d.getId())
-                                && YearMonth.from(ts.getCreatedAt()).equals(yearMonth))
-                        .map(TripSalary::getAmount)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                // Lấy lương chuyến đi trong tháng
+                Double tripSalary = tripRepository.sumCostByDriverAndMonth(d.getId(), month);
+                if (tripSalary == null) tripSalary = 0.0;
 
-                // Tổng lương
-                BigDecimal total = baseSalary.add(tripSalary).subtract(advance);
+                // Lấy tổng ứng lương trong tháng
+                Double advancePayment = advancePaymentRepository.sumByDriverAndMonth(d.getId(), month);
+                if (advancePayment == null) advancePayment = 0.0;
 
-                report.add(SalaryReportResponse.builder()
-                        .driverId(d.getId())
-                        .driverName(d.getFullName())
-                        .baseSalary(baseSalary.doubleValue())
-                        .tripSalary(tripSalary.doubleValue())
-                        .advancePayment(advance.doubleValue())
-                        .totalSalary(total.doubleValue())
-                        .build());
+                // Gán giá trị vào DTO
+                dto.setBaseSalary(baseSalary + allowance);
+                dto.setTripSalary(tripSalary);
+                dto.setAdvancePayment(advancePayment);
+
+                // Tổng lương = baseSalary + allowance + tripSalary - advancePayment
+                dto.setTotalSalary(baseSalary + allowance + tripSalary - advancePayment);
+
+                results.add(dto);
             }
 
-            return report;
+            return results;
         }
+
     }
+
+// ** baseSalary = 12,000,000 mức lương hàng tháng
+//
+//allowance = 3,000,000 phụ cấp
+//
+//tripSalary = 900,000 tiền sau các chuyến xe chạy
+//
+//advancePayment = 500,000 tiền ứng
+//
+// totalSalary = 12,000,000 + 3,000,000 + 900,000 - 500,000 = 15,400,000**/
